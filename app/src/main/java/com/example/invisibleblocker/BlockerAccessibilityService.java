@@ -1010,3 +1010,82 @@ private String lastRedirectPackage = "";
         super.onDestroy();
     }
 }
+private void redirectToFeed(String packageName) {
+
+    long now = SystemClock.elapsedRealtime();
+
+    if (packageName.equals(lastRedirectPackage)
+            && now - lastRedirectAt < REDIRECT_GAP) {
+        return;
+    }
+
+    lastRedirectAt = now;
+    lastRedirectPackage = packageName;
+
+    AccessibilityNodeInfo root =
+            getRootInActiveWindow();
+
+    if (root == null) {
+        performSingleBackFallback();
+        return;
+    }
+
+    boolean redirected = false;
+
+    if (YOUTUBE.equals(packageName)) {
+
+        redirected = clickNavigationItem(
+                root,
+                new String[]{
+                        "home",
+                        "home tab",
+                        "youtube home"
+                },
+                new String[]{
+                        "pivot",
+                        "bottom",
+                        "navigation",
+                        "home"
+                }
+        );
+
+    } else if (INSTAGRAM.equals(packageName)) {
+
+        redirected = clickNavigationItem(
+                root,
+                new String[]{
+                        "home",
+                        "home tab",
+                        "instagram home"
+                },
+                new String[]{
+                        "tab",
+                        "navigation",
+                        "home",
+                        "feed"
+                }
+        );
+
+    } else if (FACEBOOK.equals(packageName)) {
+
+        redirected = clickNavigationItem(
+                root,
+                new String[]{
+                        "home",
+                        "home tab",
+                        "feed",
+                        "news feed"
+                },
+                new String[]{
+                        "tab",
+                        "navigation",
+                        "home",
+                        "feed"
+                }
+        );
+    }
+
+    if (!redirected) {
+        performSingleBackFallback();
+    }
+}
