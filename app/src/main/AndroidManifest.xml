@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
@@ -10,14 +8,34 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
+        <!-- Main screen (no launcher filter here, so it always stays openable) -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true" />
+
+        <!-- Launcher icon: this alias is switched off to hide the app -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- Dialer code *#*#2580#*#* opens the app -->
+        <receiver
+            android:name=".SecretCodeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SECRET_CODE" />
+                <data
+                    android:scheme="android_secret_code"
+                    android:host="2580" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".BlockerAccessibilityService"
