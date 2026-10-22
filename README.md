@@ -175,34 +175,6 @@ As a result:
 
 ---
 
-## Project Structure
-
-```text
-Reels-Blocker/
-├── .github/
-│   └── workflows/
-├── app/
-│   ├── build.gradle
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/example/invisibleblocker/
-│       │   ├── MainActivity.java
-│       │   └── BlockerAccessibilityService.java
-│       └── res/
-│           ├── drawable/
-│           │   └── ic_launcher.png
-│           ├── values/
-│           │   └── strings.xml
-│           └── xml/
-│               └── accessibility_service_config.xml
-├── build.gradle
-├── gradle.properties
-├── settings.gradle
-└── README.md
-```
-
----
-
 ## Releases
 
 Compiled builds are distributed through GitHub Releases.
