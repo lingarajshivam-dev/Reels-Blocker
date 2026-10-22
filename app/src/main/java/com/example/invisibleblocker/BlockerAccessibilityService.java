@@ -16,6 +16,10 @@ import java.util.Map;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
+    private static final long REDIRECT_GAP = 650L;
+
+private long lastRedirectAt = 0L;
+private String lastRedirectPackage = "";
     private static final String INSTAGRAM = "com.instagram.android";
     private static final String YOUTUBE = "com.google.android.youtube";
     private static final String FACEBOOK = "com.facebook.katana";
@@ -183,7 +187,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
                     return;
                 }
 
-                blockNavigation();
+                redirectToFeed(packageName);
                 scheduleScreenChecks();
                 return;
             }
@@ -364,7 +368,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
          * search, profile, group, or dedicated Reels/Shorts tab
          * is blocked.
          */
-        blockNavigation();
+        redirectToFeed(packageName);
     }
 
     private boolean isBlockedPlayerVisible(
