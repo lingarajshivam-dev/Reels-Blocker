@@ -1,38 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Allows the app to show Android's battery-exemption request -->
     <uses-permission
         android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-    android:allowBackup="false"
-    android:icon="@mipmap/ic_launcher"
-    android:roundIcon="@mipmap/ic_launcher_round"
-    android:label="Reels Blocker"
-    android:supportsRtl="true"
-    android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Reels Blocker"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
-        <!-- Main application screen -->
         <activity
             android:name=".MainActivity"
             android:exported="true" />
 
-        <!-- Launcher alias allows the icon to be hidden or shown -->
         <activity-alias
-    android:name=".LauncherAlias"
-    android:enabled="true"
-    android:exported="true"
-    android:icon="@mipmap/ic_launcher"
-    android:label="Reels Blocker"
-    android:targetActivity=".MainActivity">
-
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent-filter>
-
-</activity-alias>
+            android:name=".LauncherAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Reels Blocker"
+            android:targetActivity=".MainActivity">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -41,7 +31,6 @@
 
         </activity-alias>
 
-        <!-- Accessibility Service -->
         <service
             android:name=".BlockerAccessibilityService"
             android:exported="true"
