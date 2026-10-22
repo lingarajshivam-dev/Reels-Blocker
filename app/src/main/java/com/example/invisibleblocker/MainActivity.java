@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -23,6 +24,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
@@ -37,7 +39,7 @@ public class MainActivity extends Activity {
     private TextView statusPill, headline, subText;
     private LinearLayout stepsCard, batteryRow;
     private TextView batteryText, batteryFix;
-    private TextView primaryBtn, secondaryBtn;
+    private TextView primaryBtn, secondaryBtn, hideBtn;
     private ObjectAnimator pulseX, pulseY;
     private boolean batteryAsked = false;
 
@@ -112,7 +114,7 @@ public class MainActivity extends Activity {
         batteryFix = text("Fix", 14, Color.WHITE, true);
         batteryFix.setPadding(dp(18), dp(8), dp(18), dp(8));
         batteryFix.setBackground(rounded(AMBER, dp(20), AMBER));
-        batteryFix.setOnClickListener(v -> { press(v); openBatteryPopup(); });
+        batteryFix.setOnClickListener(v -> { press(v); showBatteryGuide(); });
         batteryRow.addView(batteryFix);
         LinearLayout.LayoutParams bLp = match();
         bLp.topMargin = dp(22);
@@ -158,6 +160,16 @@ public class MainActivity extends Activity {
         sLp.topMargin = dp(12);
         root.addView(secondaryBtn, sLp);
 
+        // ---- Hide / show icon button ----
+        hideBtn = text("", 14, Color.WHITE, false);
+        hideBtn.setGravity(Gravity.CENTER);
+        hideBtn.setPadding(0, dp(14), 0, dp(14));
+        hideBtn.setBackground(rounded(Color.TRANSPARENT, dp(30), Color.parseColor("#55FFFFFF")));
+        hideBtn.setOnClickListener(v -> { press(v); onHideClicked(); });
+        LinearLayout.LayoutParams hbLp = match();
+        hbLp.topMargin = dp(12);
+        root.addView(hideBtn, hbLp);
+
         // ---- Privacy note ----
         TextView privacy = text("🔒 No data is read, stored or shared", 12,
                 Color.parseColor("#80FFFFFF"), false);
@@ -186,10 +198,10 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateUi();
-        // Automatically ask once per launch to disable battery optimisation
+        // Ask once per launch about battery optimisation
         if (!batteryAsked && !isBatteryUnrestricted()) {
             batteryAsked = true;
-            openBatteryPopup();
+            showBatteryGuide();
         }
     }
 
@@ -243,6 +255,8 @@ public class MainActivity extends Activity {
             secondaryBtn.setVisibility(Build.VERSION.SDK_INT >= 33 ? View.VISIBLE : View.GONE);
         }
 
+        hideBtn.setText(isIconHidden() ? "👁  Show app icon" : "🙈  Hide app icon");
+
         if (!pulseX.isRunning()) {
             pulseX.start();
             pulseY.start();
@@ -268,15 +282,64 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    // ================= HIDE ICON =================
+    private ComponentName launcherAlias() {
+        return new ComponentName(this, getPackageName() + ".LauncherAlias");
+    }
+
+    private boolean isIconHidden() {
+        return getPackageManager().getComponentEnabledSetting(launcherAlias())
+                == PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+    }
+
+    private void setIconHidden(boolean hide) {
+        getPackageManager().setComponentEnabledSetting(launcherAlias(),
+                hide ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                     : PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP);
+        updateUi();
+    }
+
+    private void onHideClicked() {
+        if (isIconHidden()) {
+            setIconHidden(false);
+            Toast.makeText(this, "App icon is visible again", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Hide app icon?")
+                .setMessage("The icon will be removed from the home screen and app drawer. " +
+                        "Blocking keeps working.\n\nTo open the app again:\n" +
+                        "• Settings → Accessibility → Invisible Blocker → Settings\n" +
+                        "• or dial  *#*#2580#*#*")
+                .setPositiveButton("Hide", (d, x) -> {
+                    setIconHidden(true);
+                    Toast.makeText(this, "Icon hidden. It may take a few seconds.",
+                            Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     // ================= ACTIONS =================
-    private void openBatteryPopup() {
+    private void showBatteryGuide() {
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Turn off battery optimisation")
+                .setMessage("So Android doesn't stop the blocker:\n\n" +
+                        "1. On the next screen choose 'All apps'\n" +
+                        "2. Find 'Reels Blocker'\n" +
+                        "3. Select 'Don't optimise' / 'Unrestricted'")
+                .setPositiveButton("Open", (d, x) -> openBatterySettings())
+                .setNegativeButton("Later", null)
+                .show();
+    }
+
+    private void openBatterySettings() {
         try {
-            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:" + getPackageName())));
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
         } catch (Exception e) {
-            try {
-                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-            } catch (Exception ignored) { }
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
         }
     }
 
