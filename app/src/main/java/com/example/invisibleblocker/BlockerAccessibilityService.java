@@ -24,24 +24,33 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     /*
      * Unlock pattern:
-     * tap-tap, pause, tap-tap
+     * quick tap-tap, pause, quick tap-tap
      */
     private static final long QUICK_GAP_MAX = 700L;
     private static final long PAUSE_MIN = 1000L;
     private static final long PAUSE_MAX = 3000L;
     private static final long DUPLICATE_EVENT_MS = 80L;
 
+    /*
+     * Temporary unlock duration: 10 minutes.
+     */
     private static final long UNLOCK_DURATION =
             10L * 60L * 1000L;
 
     /*
-     * Separate unlock expiry for each supported application.
+     * Duplicate Back actions occurring within this period
+     * are ignored.
+     */
+    private static final long BACK_ACTION_GAP = 180L;
+
+    /*
+     * Each supported app gets an independent unlock timer.
      */
     private final Map<String, Long> unlockedUntil =
             new HashMap<>();
 
     /*
-     * Tap-pattern tracking.
+     * Stores the four taps used for the secret pattern.
      */
     private final List<Long> tapTimes =
             new ArrayList<>();
@@ -53,6 +62,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+
         if (event == null || event.getPackageName() == null) {
             return;
         }
@@ -64,23 +74,27 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 event.getEventType();
 
         /*
-         * Process all window changes, including launcher and
-         * unsupported apps. This immediately resets an unlock
-         * when Instagram, YouTube, or Facebook is left.
+         * This check runs for all apps.
+         *
+         * When Instagram, YouTube, or Facebook is minimised,
+         * closed, or replaced by another app, its 10-minute
+         * unlock is immediately removed.
          */
-        if (eventType
-                == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             handleForegroundChange(packageName);
         }
 
+        /*
+         * Ignore clicks from apps other than the three
+         * supported social apps.
+         */
         if (!isSupportedPackage(packageName)) {
             return;
         }
 
         /*
-         * While this specific app is unlocked, allow its tab
-         * and its Reels/Shorts player.
+         * If this specific app is temporarily unlocked,
+         * allow its Reels or Shorts tab.
          */
         if (isUnlocked(packageName)) {
             return;
@@ -100,9 +114,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 getEventLabel(event);
 
         /*
-         * DM and direct-link players are not blocked here.
-         * Only the navigation control labelled Reels/Shorts
-         * activates the blocker and secret pattern.
+         * Only block taps on the Reels or Shorts navigation tab.
+         *
+         * Reels or Shorts opened from DMs, Messenger,
+         * notifications, WhatsApp, email, or direct links are
+         * allowed because those actions do not tap the app's
+         * Reels or Shorts navigation tab.
          */
         if (!isBlockedNavigationLabel(packageName, label)) {
             return;
@@ -112,78 +129,93 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 SystemClock.elapsedRealtime();
 
         /*
-         * Count only click events. Some applications emit
-         * CLICKED and SELECTED for one physical tap.
+         * Only CLICKED events count toward the secret pattern.
+         * Some apps emit both CLICKED and SELECTED for one tap.
          */
-        if (clickEvent
-         *      && registerPatternTap(packag*Name, now)) {
+        if (clickEvent && registerPatternTap(packageName, now)) {
 
-            unlockP*ckage(packageName);
-            re*urn;
+            unlockPackage(packageName);
+            return;
         }
 
-        blockTabNa*igation();
+        blockTabNavigation();
     }
 
+    // =========================================================
+    // SUPPORTED APPS
+    // =========================================================
+
     private boolean isSupportedPackage(String packageName) {
+
         return INSTAGRAM.equals(packageName)
                 || YOUTUBE.equals(packageName)
                 || FACEBOOK.equals(packageName);
     }
 
-    // ================= FOREGROUND RESET =================
+    // =========================================================
+    // FOREGROUND AND MINIMISE RESET
+    // =========================================================
 
     private void handleForegroundChange(String newPackage) {
+
         if (newPackage == null || newPackage.isEmpty()) {
             return;
         }
 
         /*
-         * Leaving a supported social app immediately clears
-         * only that application's unlock.
+         * When the user leaves one of the supported apps,
+         * remove only that app's unlock and unfinished pattern.
          */
-        if (!foregroundPac*age.isEmpty()
-                && i*SupportedPackage(foregroundPackage*
-                && !foregroundPac*age.equals(newPackage)) {
+        if (!foregroundPackage.isEmpty()
+                && isSupportedPackage(foregroundPackage)
+                && !foregroundPackage.equals(newPackage)) {
 
-       *    resetPackageState(foregroundPa*kage);
+            resetPackageState(foregroundPackage);
         }
 
-        foregrou*dPackage =
-                newPack*ge;
+        foregroundPackage =
+                newPackage;
     }
 
-    private void resetP*ckageState(String packageName) {
- *      unlockedUntil.remove(package*ame);
+    private void resetPackageState(String packageName) {
 
-        if (packageName.equ*ls(patternPackage)) {
-            *apTimes.clear();
-            patte*nPackage = "";
+        unlockedUntil.remove(packageName);
+
+        if (packageName.equals(patternPackage)) {
+            tapTimes.clear();
+            patternPackage = "";
         }
 
-        *astBackActionAt = 0L;
+        lastBackActionAt = 0L;
     }
 
-    // ================= PATTERN =================
+    // =========================================================
+    // TAP-TAP, PAUSE, TAP-TAP PATTERN
+    // =========================================================
 
     private boolean registerPatternTap(
             String packageName,
             long now) {
 
+        /*
+         * A pattern cannot continue across different apps.
+         */
         if (!packageName.equals(patternPackage)) {
+
             tapTimes.clear();
             patternPackage = packageName;
         }
 
         if (!tapTimes.isEmpty()) {
-            long lastTap =
+
+            long previousTap =
                     tapTimes.get(tapTimes.size() - 1);
 
             long gap =
-                    now - lastTap;
+                    now - previousTap;
 
             /*
-             * Ignore duplicate accessibility events coming
+             * Ignore duplicate Accessibility events generated
              * from one physical tap.
              */
             if (gap < DUPLICATE_EVENT_MS) {
@@ -191,7 +223,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
             }
 
             /*
-             * An excessively long delay starts a new pattern.
+             * If the delay is longer than the allowed pause,
+             * start a new pattern.
              */
             if (gap > PAUSE_MAX) {
                 tapTimes.clear();
@@ -200,6 +233,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         tapTimes.add(now);
 
+        /*
+         * Only the latest four valid taps are required.
+         */
         while (tapTimes.size() > 4) {
             tapTimes.remove(0);
         }
@@ -233,23 +269,31 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
             tapTimes.clear();
             patternPackage = "";
+
             return true;
         }
 
         return false;
     }
 
-    // ================= UNLOCK =================
+    // =========================================================
+    // TEMPORARY UNLOCK
+    // =========================================================
 
     private void unlockPackage(String packageName) {
+
         long expiry =
                 SystemClock.elapsedRealtime()
                         + UNLOCK_DURATION;
 
-        unlockedUntil.put(packageName, expiry);
+        unlockedUntil.put(
+                packageName,
+                expiry
+        );
 
         tapTimes.clear();
         patternPackage = "";
+        lastBackActionAt = 0L;
 
         Toast.makeText(
                 this,
@@ -260,6 +304,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isUnlocked(String packageName) {
+
         Long expiry =
                 unlockedUntil.get(packageName);
 
@@ -271,27 +316,36 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return true;
         }
 
+        /*
+         * Ten minutes have expired.
+         */
         resetPackageState(packageName);
+
         return false;
     }
 
-    // ================= LABEL DETECTION =================
+    // =========================================================
+    // EVENT LABEL DETECTION
+    // =========================================================
 
-    private String getEventLabel(
-            AccessibilityEvent event) {
+    private String getEventLabel(AccessibilityEvent event) {
 
         StringBuilder label =
                 new StringBuilder();
 
         if (event.getText() != null) {
+
             for (CharSequence value : event.getText()) {
+
                 if (value != null) {
-                    label.append(value).append(" ");
+                    label.append(value);
+                    label.append(" ");
                 }
             }
         }
 
         if (event.getContentDescription() != null) {
+
             label.append(
                     event.getContentDescription()
             );
@@ -306,23 +360,26 @@ public class BlockerAccessibilityService extends AccessibilityService {
             String packageName,
             String label) {
 
-        if (label.isEmpty()) {
+        if (label == null || label.isEmpty()) {
             return false;
         }
 
         if (YOUTUBE.equals(packageName)) {
+
             return label.equals("shorts")
                     || label.equals("youtube shorts")
                     || label.contains("shorts tab");
         }
 
         if (INSTAGRAM.equals(packageName)) {
+
             return label.equals("reels")
                     || label.equals("instagram reels")
                     || label.contains("reels tab");
         }
 
         if (FACEBOOK.equals(packageName)) {
+
             return label.equals("reels")
                     || label.equals("facebook reels")
                     || label.contains("reels tab")
@@ -332,28 +389,36 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return false;
     }
 
-    // ================= BLOCK ACTION =================
+    // =========================================================
+    // BLOCK ACTION
+    // =========================================================
 
     private void blockTabNavigation() {
+
         long now =
                 SystemClock.elapsedRealtime();
 
         /*
-         * Prevent duplicate Back actions caused by multiple
-         * accessibility events for one physical tap.
+         * Prevent multiple Back actions from duplicate events.
          */
-        if (now - lastBackActionAt < 180L) {
+        if (now - lastBackActionAt < BACK_ACTION_GAP) {
             return;
         }
 
-        lastBackActionAt = now;
+        lastBackActionAt =
+                now;
 
         performGlobalAction(
                 GLOBAL_ACTION_BACK
         );
     }
 
+    // =========================================================
+    // DISPLAY NAME
+    // =========================================================
+
     private String getAppName(String packageName) {
+
         if (INSTAGRAM.equals(packageName)) {
             return "Instagram Reels";
         }
@@ -369,15 +434,23 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return "Short videos";
     }
 
+    // =========================================================
+    // SERVICE CALLBACKS
+    // =========================================================
+
     @Override
     public void onInterrupt() {
-        // Required callback.
+        /*
+         * Required AccessibilityService callback.
+         */
     }
 
     @Override
     public void onDestroy() {
+
         unlockedUntil.clear();
         tapTimes.clear();
+
         super.onDestroy();
     }
 }
