@@ -1,110 +1,209 @@
 package com.example.invisibleblocker;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
-import android.widget.Button;
+import android.view.View;
+import android.view.Window;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
-    private TextView statusText;
-    private TextView stepsText;
-    private Button enableButton;
-    private Button restrictedButton;
+    private static final int RED = Color.parseColor("#FF3B5C");
+    private static final int GREEN = Color.parseColor("#00E58F");
+    private static final int CARD = Color.parseColor("#1AFFFFFF");
+    private static final int TEXT_DIM = Color.parseColor("#B3FFFFFF");
+
+    private View glowRing;
+    private TextView statusPill, headline, subText;
+    private LinearLayout stepsCard;
+    private TextView primaryBtn, secondaryBtn;
+    private ObjectAnimator pulseX, pulseY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Window w = getWindow();
+        w.setStatusBarColor(Color.parseColor("#1A0B2E"));
+        w.setNavigationBarColor(Color.parseColor("#0A0A12"));
 
-        int pad = dp(24);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.parseColor("#1A0B2E"), Color.parseColor("#120A24"),
+                        Color.parseColor("#0A0A12")});
+        scroll.setBackground(bg);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(pad, dp(48), pad, pad);
-        root.setBackgroundColor(Color.parseColor("#1E1E2E"));
+        root.setPadding(dp(24), dp(40), dp(24), dp(32));
+        scroll.addView(root);
 
+        // ---- Icon with glowing ring ----
+        FrameLayout iconBox = new FrameLayout(this);
+        glowRing = new View(this);
+        FrameLayout.LayoutParams ringLp = new FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER);
+        iconBox.addView(glowRing, ringLp);
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.drawable.ic_launcher);
-        root.addView(icon, new LinearLayout.LayoutParams(dp(110), dp(110)));
+        icon.setClipToOutline(true);
+        GradientDrawable iconShape = new GradientDrawable();
+        iconShape.setCornerRadius(dp(30));
+        icon.setBackground(iconShape);
+        icon.setElevation(dp(12));
+        iconBox.addView(icon, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.CENTER));
+        root.addView(iconBox, new LinearLayout.LayoutParams(dp(180), dp(180)));
 
-        TextView title = new TextView(this);
-        title.setText("Reels Blocker");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(26);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setPadding(0, dp(16), 0, dp(8));
+        // ---- Title ----
+        TextView title = text("Reels Blocker", 30, Color.WHITE, true);
+        title.setLetterSpacing(0.02f);
+        title.setPadding(0, dp(12), 0, dp(4));
         root.addView(title);
 
-        statusText = new TextView(this);
-        statusText.setTextSize(18);
-        statusText.setTypeface(Typeface.DEFAULT_BOLD);
-        statusText.setPadding(0, dp(8), 0, dp(16));
-        root.addView(statusText);
+        TextView tagline = text("Take back your time ⏳", 14, TEXT_DIM, false);
+        root.addView(tagline);
 
-        stepsText = new TextView(this);
-        stepsText.setTextColor(Color.parseColor("#DDDDDD"));
-        stepsText.setTextSize(15);
-        stepsText.setLineSpacing(0, 1.3f);
-        root.addView(stepsText);
+        // ---- Status pill ----
+        statusPill = text("", 13, Color.WHITE, true);
+        statusPill.setLetterSpacing(0.12f);
+        statusPill.setPadding(dp(18), dp(8), dp(18), dp(8));
+        LinearLayout.LayoutParams pillLp = wrap();
+        pillLp.topMargin = dp(20);
+        root.addView(statusPill, pillLp);
 
-        enableButton = new Button(this);
-        enableButton.setText("Turn On Accessibility");
-        enableButton.setOnClickListener(v -> showDisclosure());
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(24);
-        root.addView(enableButton, lp);
+        // ---- Headline + subtext ----
+        headline = text("", 22, Color.WHITE, true);
+        headline.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hLp = wrap();
+        hLp.topMargin = dp(20);
+        root.addView(headline, hLp);
 
-        restrictedButton = new Button(this);
-        restrictedButton.setText("Option greyed out? Tap here");
-        restrictedButton.setOnClickListener(v -> openAppInfo());
-        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp2.topMargin = dp(8);
-        root.addView(restrictedButton, lp2);
+        subText = text("", 14, TEXT_DIM, false);
+        subText.setGravity(Gravity.CENTER);
+        subText.setPadding(dp(8), dp(6), dp(8), 0);
+        root.addView(subText);
 
-        setContentView(root);
+        // ---- Steps card ----
+        stepsCard = new LinearLayout(this);
+        stepsCard.setOrientation(LinearLayout.VERTICAL);
+        stepsCard.setPadding(dp(20), dp(18), dp(20), dp(18));
+        stepsCard.setBackground(rounded(CARD, dp(20), Color.parseColor("#26FFFFFF")));
+        String[] steps = {
+                "Tap the button below",
+                "Open 'Installed apps' / 'Downloaded apps'",
+                "Select 'Invisible Blocker'",
+                "Switch it ON and tap Allow",
+                "Come back here ✨"};
+        for (int i = 0; i < steps.length; i++) stepsCard.addView(stepRow(i + 1, steps[i]));
+        LinearLayout.LayoutParams cardLp = match();
+        cardLp.topMargin = dp(22);
+        root.addView(stepsCard, cardLp);
+
+        // ---- Buttons ----
+        primaryBtn = text("", 17, Color.WHITE, true);
+        primaryBtn.setGravity(Gravity.CENTER);
+        primaryBtn.setPadding(0, dp(17), 0, dp(17));
+        GradientDrawable btnBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.parseColor("#FF3B5C"), Color.parseColor("#A13BFF")});
+        btnBg.setCornerRadius(dp(30));
+        primaryBtn.setBackground(btnBg);
+        primaryBtn.setElevation(dp(8));
+        primaryBtn.setOnClickListener(v -> { press(v); showDisclosure(); });
+        LinearLayout.LayoutParams pLp = match();
+        pLp.topMargin = dp(26);
+        root.addView(primaryBtn, pLp);
+
+        secondaryBtn = text("Switch greyed out? Fix it here", 14, Color.WHITE, false);
+        secondaryBtn.setGravity(Gravity.CENTER);
+        secondaryBtn.setPadding(0, dp(14), 0, dp(14));
+        secondaryBtn.setBackground(rounded(Color.TRANSPARENT, dp(30), Color.parseColor("#55FFFFFF")));
+        secondaryBtn.setOnClickListener(v -> { press(v); openAppInfo(); });
+        LinearLayout.LayoutParams sLp = match();
+        sLp.topMargin = dp(12);
+        root.addView(secondaryBtn, sLp);
+
+        TextView privacy = text("🔒 No data is read, stored or shared", 12, Color.parseColor("#80FFFFFF"), false);
+        LinearLayout.LayoutParams prLp = wrap();
+        prLp.topMargin = dp(22);
+        root.addView(privacy, prLp);
+
+        setContentView(scroll);
+
+        // Fade-in entrance
+        root.setAlpha(0f);
+        root.setTranslationY(dp(30));
+        root.animate().alpha(1f).translationY(0).setDuration(600).start();
+
+        // Pulse animation for ring
+        pulseX = ObjectAnimator.ofFloat(glowRing, "scaleX", 0.9f, 1.08f);
+        pulseY = ObjectAnimator.ofFloat(glowRing, "scaleY", 0.9f, 1.08f);
+        for (ObjectAnimator a : new ObjectAnimator[]{pulseX, pulseY}) {
+            a.setDuration(1100);
+            a.setRepeatCount(ValueAnimator.INFINITE);
+            a.setRepeatMode(ValueAnimator.REVERSE);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        updateUi(); // re-check every time user comes back from Settings
+        updateUi();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        pulseX.cancel();
+        pulseY.cancel();
     }
 
     private void updateUi() {
-        if (isServiceEnabled()) {
-            statusText.setText("✅ Protection is ON");
-            statusText.setTextColor(Color.parseColor("#4CAF50"));
-            stepsText.setText("Reels are now being blocked.\nYou can close this app.");
-            enableButton.setText("Open Accessibility Settings");
-            restrictedButton.setVisibility(Button.GONE);
+        boolean on = isServiceEnabled();
+        int color = on ? GREEN : RED;
+
+        GradientDrawable ring = new GradientDrawable(GradientDrawable.RECTANGLE);
+        ring.setShape(GradientDrawable.OVAL);
+        ring.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        ring.setGradientRadius(dp(85));
+        ring.setColors(new int[]{withAlpha(color, 110), withAlpha(color, 40), Color.TRANSPARENT});
+        glowRing.setBackground(ring);
+
+        statusPill.setText(on ? "●  PROTECTION ACTIVE" : "●  PROTECTION OFF");
+        statusPill.setBackground(rounded(withAlpha(color, 45), dp(20), color));
+        statusPill.setTextColor(color);
+
+        if (on) {
+            headline.setText("You're protected 🎉");
+            subText.setText("Reels are blocked automatically.\nYou can close this app now.");
+            stepsCard.setVisibility(View.GONE);
+            primaryBtn.setText("Open Accessibility Settings");
+            secondaryBtn.setVisibility(View.GONE);
         } else {
-            statusText.setText("❌ Protection is OFF");
-            statusText.setTextColor(Color.parseColor("#E53935"));
-            stepsText.setText(
-                    "To start blocking reels:\n\n" +
-                    "1. Tap 'Turn On Accessibility' below\n" +
-                    "2. Tap 'Installed apps' (or 'Downloaded apps')\n" +
-                    "3. Tap 'Invisible Blocker'\n" +
-                    "4. Switch it ON and tap 'Allow'\n" +
-                    "5. Press Back to return here");
-            enableButton.setText("Turn On Accessibility");
-            restrictedButton.setVisibility(
-                    Build.VERSION.SDK_INT >= 33 ? Button.VISIBLE : Button.GONE);
+            headline.setText("One quick step left");
+            subText.setText("Turn on Accessibility so the app can block reels.");
+            stepsCard.setVisibility(View.VISIBLE);
+            primaryBtn.setText("Turn On Protection  →");
+            secondaryBtn.setVisibility(Build.VERSION.SDK_INT >= 33 ? View.VISIBLE : View.GONE);
         }
+
+        if (!pulseX.isRunning()) { pulseX.start(); pulseY.start(); }
     }
 
     private boolean isServiceEnabled() {
@@ -123,19 +222,17 @@ public class MainActivity extends Activity {
 
     private void showDisclosure() {
         if (isServiceEnabled()) { openAccessibilitySettings(); return; }
-        new AlertDialog.Builder(this)
-                .setTitle("Accessibility permission needed")
-                .setMessage("Reels Blocker uses the Accessibility Service only to detect when a " +
-                        "Reels/Shorts screen opens and close it.\n\n" +
-                        "It does not read, store or share your personal data.")
-                .setPositiveButton("Continue", (d, w) -> openAccessibilitySettings())
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Accessibility permission")
+                .setMessage("Reels Blocker uses Accessibility only to detect when a Reels/Shorts " +
+                        "screen opens and close it.\n\nNo personal data is read, stored or shared.")
+                .setPositiveButton("Continue", (d, x) -> openAccessibilitySettings())
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
     private void openAccessibilitySettings() {
         Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-        // Highlights our app in the list on many phones (ignored where unsupported)
         String component = new ComponentName(this, BlockerAccessibilityService.class).flattenToString();
         Bundle args = new Bundle();
         args.putString(":settings:fragment_args_key", component);
@@ -146,19 +243,76 @@ public class MainActivity extends Activity {
     }
 
     private void openAppInfo() {
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Allow restricted setting")
-                .setMessage("On Android 13+, apps installed from an APK are restricted.\n\n" +
+                .setMessage("Android 13+ locks Accessibility for apps installed from an APK.\n\n" +
                         "1. On the next screen tap ⋮ (top-right)\n" +
                         "2. Tap 'Allow restricted settings'\n" +
-                        "3. Come back and tap 'Turn On Accessibility'")
-                .setPositiveButton("Open App Info", (d, w) -> {
-                    Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:" + getPackageName()));
-                    startActivity(i);
-                })
+                        "3. Come back and tap 'Turn On Protection'")
+                .setPositiveButton("Open App Info", (d, x) -> startActivity(new Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName()))))
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    // ---------- UI helpers ----------
+    private LinearLayout stepRow(int n, String label) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(7), 0, dp(7));
+
+        TextView num = text(String.valueOf(n), 13, Color.WHITE, true);
+        num.setGravity(Gravity.CENTER);
+        GradientDrawable circle = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.parseColor("#FF3B5C"), Color.parseColor("#A13BFF")});
+        circle.setShape(GradientDrawable.OVAL);
+        num.setBackground(circle);
+        row.addView(num, new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        TextView t = text(label, 15, Color.WHITE, false);
+        t.setPadding(dp(14), 0, 0, 0);
+        row.addView(t);
+        return row;
+    }
+
+    private TextView text(String s, int sp, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(sp);
+        t.setTextColor(color);
+        t.setTypeface(Typeface.create("sans-serif" + (bold ? "-medium" : ""),
+                bold ? Typeface.BOLD : Typeface.NORMAL));
+        return t;
+    }
+
+    private GradientDrawable rounded(int fill, int radius, int stroke) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(radius);
+        g.setStroke(dp(1), stroke);
+        return g;
+    }
+
+    private void press(View v) {
+        v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80)
+                .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(120).start())
+                .start();
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private LinearLayout.LayoutParams match() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams wrap() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 
     private int dp(int v) {
