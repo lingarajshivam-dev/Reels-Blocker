@@ -171,7 +171,7 @@ public class MainActivity extends Activity {
                 new ImageView(this);
 
         icon.setImageResource(
-                R.drawable.ic_launcher
+                R.drawable.ic_launcher_foreground
         );
 
         icon.setScaleType(
