@@ -6,12 +6,12 @@
         android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:allowBackup="false"
-        android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher"
-        android:label="Reels Blocker"
-        android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+    android:allowBackup="false"
+    android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher_round"
+    android:label="Reels Blocker"
+    android:supportsRtl="true"
+    android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
         <!-- Main application screen -->
         <activity
@@ -20,12 +20,19 @@
 
         <!-- Launcher alias allows the icon to be hidden or shown -->
         <activity-alias
-            android:name=".LauncherAlias"
-            android:enabled="true"
-            android:exported="true"
-            android:icon="@drawable/ic_launcher"
-            android:label="Reels Blocker"
-            android:targetActivity=".MainActivity">
+    android:name=".LauncherAlias"
+    android:enabled="true"
+    android:exported="true"
+    android:icon="@mipmap/ic_launcher"
+    android:label="Reels Blocker"
+    android:targetActivity=".MainActivity">
+
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+
+</activity-alias>
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
