@@ -1,11 +1,8 @@
 package com.example.invisibleblocker;
 
 import android.accessibilityservice.AccessibilityService;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -16,199 +13,371 @@ import java.util.Map;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
-    private static final String IG = "com.instagram.android";
-    private static final String YT = "com.google.android.youtube";
+    private static final String INSTAGRAM =
+            "com.instagram.android";
 
-    // ---- Secret unlock pattern: (tap+tap) pause (tap+tap) ----
-    private static final long QUICK_GAP_MAX = 600;               // ms between taps in a pair
-    private static final long PAUSE_MIN = 1000;                  // ms pause between pairs
-    private static final long PAUSE_MAX = 3000;
-    private static final long DUPLICATE_MS = 80;                 // ignore double events of one tap
-    private static final long UNLOCK_DURATION = 10 * 60 * 1000L; // 10 minutes
+    private static final String YOUTUBE =
+            "com.google.android.youtube";
 
-    // Full-screen Reels / Shorts player containers
-    private static final String[] IG_IDS = {
-            IG + ":id/clips_viewer_view_pager",
-            IG + ":id/clips_viewer_container",
-            IG + ":id/root_clips_layout",
-            IG + ":id/clips_video_container"
-    };
+    private static final String FACEBOOK =
+            "com.facebook.katana";
 
-    private static final String[] YT_IDS = {
-            YT + ":id/reel_recycler",
-            YT + ":id/reel_player_page_container",
-            YT + ":id/reel_watch_player",
-            YT + ":id/reel_watch_fragment_root"
-    };
+    /*
+     * Unlock pattern:
+     * tap-tap, pause, tap-tap
+     */
+    private static final long QUICK_GAP_MAX = 700L;
+    private static final long PAUSE_MIN = 1000L;
+    private static final long PAUSE_MAX = 3000L;
+    private static final long DUPLICATE_EVENT_MS = 80L;
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable recheck = this::checkScreen;
+    private static final long UNLOCK_DURATION =
+            10L * 60L * 1000L;
 
-    private final Map<String, Long> unlockedUntil = new HashMap<>();
-    private final List<Long> tapTimes = new ArrayList<>();
-    private String tapPkg = "";
-    private long lastTabTapAt = 0L;
+    /*
+     * Separate unlock expiry for each supported application.
+     */
+    private final Map<String, Long> unlockedUntil =
+            new HashMap<>();
 
-    private long lastActionAt = 0L;
-    private int attempts = 0;
+    /*
+     * Tap-pattern tracking.
+     */
+    private final List<Long> tapTimes =
+            new ArrayList<>();
+
+    private String patternPackage = "";
+    private String foregroundPackage = "";
+
+    private long lastBackActionAt = 0L;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null || event.getPackageName() == null) return;
-
-        String pkg = event.getPackageName().toString();
-        if (!pkg.equals(IG) && !pkg.equals(YT)) return;
-
-        int type = event.getEventType();
-        boolean isClick = type == AccessibilityEvent.TYPE_VIEW_CLICKED;
-        boolean isSelect = type == AccessibilityEvent.TYPE_VIEW_SELECTED;
-
-        // 1) Tap on the "Reels" / "Shorts" tab
-        if ((isClick || isSelect) && isBlockedLabel(pkg, labelOf(event))) {
-            long now = SystemClock.elapsedRealtime();
-            lastTabTapAt = now;
-
-            if (isClick && registerTap(pkg, now)) {
-                unlock(pkg);
-                return;
-            }
-            if (isUnlocked(pkg)) return;
-            block();
+        if (event == null || event.getPackageName() == null) {
             return;
         }
 
-        if (isUnlocked(pkg)) return;
+        String packageName =
+                event.getPackageName().toString();
 
-        // 2) Any screen change: check whether a Reels/Shorts player is visible
-        handler.removeCallbacks(recheck);
-        handler.postDelayed(recheck, 120);
+        int eventType =
+                event.getEventType();
+
+        /*
+         * Process all window changes, including launcher and
+         * unsupported apps. This immediately resets an unlock
+         * when Instagram, YouTube, or Facebook is left.
+         */
+        if (eventType
+                == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+
+            handleForegroundChange(packageName);
+        }
+
+        if (!isSupportedPackage(packageName)) {
+            return;
+        }
+
+        /*
+         * While this specific app is unlocked, allow its tab
+         * and its Reels/Shorts player.
+         */
+        if (isUnlocked(packageName)) {
+            return;
+        }
+
+        boolean clickEvent =
+                eventType == AccessibilityEvent.TYPE_VIEW_CLICKED;
+
+        boolean selectedEvent =
+                eventType == AccessibilityEvent.TYPE_VIEW_SELECTED;
+
+        if (!clickEvent && !selectedEvent) {
+            return;
+        }
+
+        String label =
+                getEventLabel(event);
+
+        /*
+         * DM and direct-link players are not blocked here.
+         * Only the navigation control labelled Reels/Shorts
+         * activates the blocker and secret pattern.
+         */
+        if (!isBlockedNavigationLabel(packageName, label)) {
+            return;
+        }
+
+        long now =
+                SystemClock.elapsedRealtime();
+
+        /*
+         * Count only click events. Some applications emit
+         * CLICKED and SELECTED for one physical tap.
+         */
+        if (clickEvent
+         *      && registerPatternTap(packag*Name, now)) {
+
+            unlockP*ckage(packageName);
+            re*urn;
+        }
+
+        blockTabNa*igation();
     }
 
-    // ================= SECRET PATTERN =================
-    /** Returns true when (tap+tap) pause (tap+tap) is completed. */
-    private boolean registerTap(String pkg, long now) {
-        if (!pkg.equals(tapPkg)) {
+    private boolean isSupportedPackage(String packageName) {
+        return INSTAGRAM.equals(packageName)
+                || YOUTUBE.equals(packageName)
+                || FACEBOOK.equals(packageName);
+    }
+
+    // ================= FOREGROUND RESET =================
+
+    private void handleForegroundChange(String newPackage) {
+        if (newPackage == null || newPackage.isEmpty()) {
+            return;
+        }
+
+        /*
+         * Leaving a supported social app immediately clears
+         * only that application's unlock.
+         */
+        if (!foregroundPac*age.isEmpty()
+                && i*SupportedPackage(foregroundPackage*
+                && !foregroundPac*age.equals(newPackage)) {
+
+       *    resetPackageState(foregroundPa*kage);
+        }
+
+        foregrou*dPackage =
+                newPack*ge;
+    }
+
+    private void resetP*ckageState(String packageName) {
+ *      unlockedUntil.remove(package*ame);
+
+        if (packageName.equ*ls(patternPackage)) {
+            *apTimes.clear();
+            patte*nPackage = "";
+        }
+
+        *astBackActionAt = 0L;
+    }
+
+    // ================= PATTERN =================
+
+    private boolean registerPatternTap(
+            String packageName,
+            long now) {
+
+        if (!packageName.equals(patternPackage)) {
             tapTimes.clear();
-            tapPkg = pkg;
+            patternPackage = packageName;
         }
 
         if (!tapTimes.isEmpty()) {
-            long gap = now - tapTimes.get(tapTimes.size() - 1);
-            if (gap < DUPLICATE_MS) return false;   // same tap reported twice
-            if (gap > PAUSE_MAX) tapTimes.clear();  // too slow: start over
+            long lastTap =
+                    tapTimes.get(tapTimes.size() - 1);
+
+            long gap =
+                    now - lastTap;
+
+            /*
+             * Ignore duplicate accessibility events coming
+             * from one physical tap.
+             */
+            if (gap < DUPLICATE_EVENT_MS) {
+                return false;
+            }
+
+            /*
+             * An excessively long delay starts a new pattern.
+             */
+            if (gap > PAUSE_MAX) {
+                tapTimes.clear();
+            }
         }
 
         tapTimes.add(now);
-        while (tapTimes.size() > 4) tapTimes.remove(0);
-        if (tapTimes.size() < 4) return false;
 
-        long g1 = tapTimes.get(1) - tapTimes.get(0); // first pair
-        long g2 = tapTimes.get(2) - tapTimes.get(1); // pause
-        long g3 = tapTimes.get(3) - tapTimes.get(2); // second pair
+        while (tapTimes.size() > 4) {
+            tapTimes.remove(0);
+        }
 
-        boolean firstPair = g1 <= QUICK_GAP_MAX;
-        boolean pause = g2 >= PAUSE_MIN && g2 <= PAUSE_MAX;
-        boolean secondPair = g3 <= QUICK_GAP_MAX;
+        if (tapTimes.size() < 4) {
+            return false;
+        }
 
-        if (firstPair && pause && secondPair) {
+        long firstPairGap =
+                tapTimes.get(1) - tapTimes.get(0);
+
+        long pauseGap =
+                tapTimes.get(2) - tapTimes.get(1);
+
+        long secondPairGap =
+                tapTimes.get(3) - tapTimes.get(2);
+
+        boolean firstPairValid =
+                firstPairGap <= QUICK_GAP_MAX;
+
+        boolean pauseValid =
+                pauseGap >= PAUSE_MIN
+                        && pauseGap <= PAUSE_MAX;
+
+        boolean secondPairValid =
+                secondPairGap <= QUICK_GAP_MAX;
+
+        if (firstPairValid
+                && pauseValid
+                && secondPairValid) {
+
             tapTimes.clear();
+            patternPackage = "";
             return true;
         }
+
         return false;
     }
 
-    private void unlock(String pkg) {
-        unlockedUntil.put(pkg, SystemClock.elapsedRealtime() + UNLOCK_DURATION);
-        handler.removeCallbacks(recheck);
-        attempts = 0;
-        Toast.makeText(this, "Unlocked for 10 min", Toast.LENGTH_SHORT).show();
+    // ================= UNLOCK =================
+
+    private void unlockPackage(String packageName) {
+        long expiry =
+                SystemClock.elapsedRealtime()
+                        + UNLOCK_DURATION;
+
+        unlockedUntil.put(packageName, expiry);
+
+        tapTimes.clear();
+        patternPackage = "";
+
+        Toast.makeText(
+                this,
+                getAppName(packageName)
+                        + " unlocked for 10 minutes",
+                Toast.LENGTH_SHORT
+        ).show();
     }
 
-    private boolean isUnlocked(String pkg) {
-        Long until = unlockedUntil.get(pkg);
-        if (until == null) return false;
-        if (SystemClock.elapsedRealtime() < until) return true;
-        unlockedUntil.remove(pkg); // expired: blocking resumes
+    private boolean isUnlocked(String packageName) {
+        Long expiry =
+                unlockedUntil.get(packageName);
+
+        if (expiry == null) {
+            return false;
+        }
+
+        if (SystemClock.elapsedRealtime() < expiry) {
+            return true;
+        }
+
+        resetPackageState(packageName);
         return false;
     }
 
-    // ================= DETECTION =================
-    private String labelOf(AccessibilityEvent event) {
-        CharSequence label = (event.getText() != null && !event.getText().isEmpty())
-                ? event.getText().get(0)
-                : event.getContentDescription();
-        return label == null ? "" : label.toString().trim().toLowerCase(Locale.ROOT);
-    }
+    // ================= LABEL DETECTION =================
 
-    private boolean isBlockedLabel(String pkg, String text) {
-        if (pkg.equals(YT)) {
-            return text.equals("shorts") || text.equals("youtube shorts");
-        }
-        return text.equals("reels") || text.equals("instagram reels");
-    }
+    private String getEventLabel(
+            AccessibilityEvent event) {
 
-    private void checkScreen() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || root.getPackageName() == null) return;
+        StringBuilder label =
+                new StringBuilder();
 
-        String pkg = root.getPackageName().toString();
-        String[] ids = pkg.equals(IG) ? IG_IDS : pkg.equals(YT) ? YT_IDS : null;
-        if (ids == null || isUnlocked(pkg)) {
-            attempts = 0;
-            return;
-        }
-
-        if (hasVisibleNode(root, ids)) {
-            block();
-        } else {
-            attempts = 0;
-        }
-    }
-
-    private boolean hasVisibleNode(AccessibilityNodeInfo root, String[] ids) {
-        for (String id : ids) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
-            if (nodes == null) continue;
-            for (AccessibilityNodeInfo n : nodes) {
-                if (n != null && n.isVisibleToUser()) return true;
+        if (event.getText() != null) {
+            for (CharSequence value : event.getText()) {
+                if (value != null) {
+                    label.append(value).append(" ");
+                }
             }
         }
+
+        if (event.getContentDescription() != null) {
+            label.append(
+                    event.getContentDescription()
+            );
+        }
+
+        return label.toString()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isBlockedNavigationLabel(
+            String packageName,
+            String label) {
+
+        if (label.isEmpty()) {
+            return false;
+        }
+
+        if (YOUTUBE.equals(packageName)) {
+            return label.equals("shorts")
+                    || label.equals("youtube shorts")
+                    || label.contains("shorts tab");
+        }
+
+        if (INSTAGRAM.equals(packageName)) {
+            return label.equals("reels")
+                    || label.equals("instagram reels")
+                    || label.contains("reels tab");
+        }
+
+        if (FACEBOOK.equals(packageName)) {
+            return label.equals("reels")
+                    || label.equals("facebook reels")
+                    || label.contains("reels tab")
+                    || label.contains("watch reels");
+        }
+
         return false;
     }
 
-    // ================= BLOCK =================
-    private void block() {
-        long now = SystemClock.elapsedRealtime();
+    // ================= BLOCK ACTION =================
 
-        if (now - lastActionAt < 300) {
-            handler.removeCallbacks(recheck);
-            handler.postDelayed(recheck, 350);
+    private void blockTabNavigation() {
+        long now =
+                SystemClock.elapsedRealtime();
+
+        /*
+         * Prevent duplicate Back actions caused by multiple
+         * accessibility events for one physical tap.
+         */
+        if (now - lastBackActionAt < 180L) {
             return;
         }
 
-        lastActionAt = now;
-        attempts++;
+        lastBackActionAt = now;
 
-        // While the user may be entering the pattern, only use Back (not Home)
-        boolean tappingTab = now - lastTabTapAt < PAUSE_MAX + 1000;
+        performGlobalAction(
+                GLOBAL_ACTION_BACK
+        );
+    }
 
-        if (attempts >= 3 && !tappingTab) {
-            performGlobalAction(GLOBAL_ACTION_HOME);
-            attempts = 0;
-        } else {
-            performGlobalAction(GLOBAL_ACTION_BACK);
+    private String getAppName(String packageName) {
+        if (INSTAGRAM.equals(packageName)) {
+            return "Instagram Reels";
         }
 
-        handler.removeCallbacks(recheck);
-        handler.postDelayed(recheck, 450);
+        if (YOUTUBE.equals(packageName)) {
+            return "YouTube Shorts";
+        }
+
+        if (FACEBOOK.equals(packageName)) {
+            return "Facebook Reels";
+        }
+
+        return "Short videos";
     }
 
     @Override
-    public void onInterrupt() { }
+    public void onInterrupt() {
+        // Required callback.
+    }
 
     @Override
     public void onDestroy() {
-        handler.removeCallbacksAndMessages(null);
+        unlockedUntil.clear();
+        tapTimes.clear();
         super.onDestroy();
     }
 }
