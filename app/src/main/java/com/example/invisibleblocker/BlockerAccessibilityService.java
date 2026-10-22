@@ -27,9 +27,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
     /*
      * Five fast tab presses unlock the corresponding app.
      */
-    private static final int REQUIRED_FAST_TAPS = 5;
-    private static final long FAST_TAP_MAX_GAP = 1000L;
-    private static final long DUPLICATE_EVENT_GAP = 120L;
+    private static final int REQUIRED_FAST_TAPS = 6;
+    private static final long FAST_TAP_MAX_GAP = 600L;
+    private static final long DUPLICATE_EVENT_GAP = 100L;
 
     /*
      * A player opened soon after switching from one of these
