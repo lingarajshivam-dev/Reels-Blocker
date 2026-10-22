@@ -1,4 +1,4 @@
-name: Build APK
+name: Reels Blocker APK
 
 on:
 workflow_dispatch:
