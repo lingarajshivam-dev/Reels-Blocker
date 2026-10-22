@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
         boolean on = isServiceEnabled();
         int color = on ? GREEN : RED;
 
-        GradientDrawable ring = new GradientDrawable(GradientDrawable.RECTANGLE);
+        GradientDrawable ring = new GradientDrawable();
         ring.setShape(GradientDrawable.OVAL);
         ring.setGradientType(GradientDrawable.RADIAL_GRADIENT);
         ring.setGradientRadius(dp(85));
