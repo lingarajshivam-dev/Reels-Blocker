@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -36,6 +37,9 @@ public class MainActivity extends Activity {
     private static final int GREEN =
             Color.parseColor("#00E58F");
 
+    private static final int AMBER =
+            Color.parseColor("#FFB020");
+
     private static final int TEXT_DIM =
             Color.parseColor("#B3FFFFFF");
 
@@ -49,6 +53,10 @@ public class MainActivity extends Activity {
     private TextView subText;
 
     private LinearLayout setupCard;
+
+    private LinearLayout batteryCard;
+    private TextView batteryStatusText;
+    private TextView batteryActionButton;
 
     private TextView primaryButton;
     private TextView restrictedButton;
@@ -67,7 +75,9 @@ public class MainActivity extends Activity {
                 new ScrollView(this);
 
         scrollView.setFillViewport(true);
-        scrollView.setBackground(createScreenBackground());
+        scrollView.setBackground(
+                createScreenBackground()
+        );
 
         LinearLayout root =
                 new LinearLayout(this);
@@ -92,6 +102,7 @@ public class MainActivity extends Activity {
         addAppIcon(root);
         addTitle(root);
         addStatus(root);
+        addBatteryCard(root);
         addSetupCard(root);
         addButtons(root);
         addPrivacyNote(root);
@@ -107,7 +118,9 @@ public class MainActivity extends Activity {
     // =========================================================
 
     private void configureWindow() {
-        Window window = getWindow();
+
+        Window window =
+                getWindow();
 
         window.setStatusBarColor(
                 Color.parseColor("#170927")
@@ -119,6 +132,7 @@ public class MainActivity extends Activity {
     }
 
     private GradientDrawable createScreenBackground() {
+
         return new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{
@@ -130,7 +144,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // ICON
+    // APP ICON
     // =========================================================
 
     private void addAppIcon(LinearLayout root) {
@@ -232,7 +246,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // STATUS AREA
+    // ACCESSIBILITY STATUS
     // =========================================================
 
     private void addStatus(LinearLayout root) {
@@ -317,6 +331,282 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
+    // BATTERY OPTIMISATION CARD
+    // =========================================================
+
+    private void addBatteryCard(LinearLayout root) {
+
+        batteryCard =
+                new LinearLayout(this);
+
+        batteryCard.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        batteryCard.setPadding(
+                dp(20),
+                dp(18),
+                dp(20),
+                dp(18)
+        );
+
+        TextView title =
+                createText(
+                        "Keep protection running",
+                        17,
+                        Color.WHITE,
+                        true
+                );
+
+        batteryCard.addView(title);
+
+        batteryStatusText =
+                createText(
+                        "",
+                        14,
+                        TEXT_DIM,
+                        false
+                );
+
+        batteryStatusText.setPadding(
+                0,
+                dp(8),
+                0,
+                dp(16)
+        );
+
+        batteryStatusText.setLineSpacing(
+                0,
+                1.15f
+        );
+
+        batteryCard.addView(
+                batteryStatusText
+        );
+
+        batteryActionButton =
+                createText(
+                        "",
+                        15,
+                        Color.WHITE,
+                        true
+                );
+
+        batteryActionButton.setGravity(
+                Gravity.CENTER
+        );
+
+        batteryActionButton.setPadding(
+                dp(16),
+                dp(13),
+                dp(16),
+                dp(13)
+        );
+
+        batteryActionButton.setOnClickListener(view -> {
+            animatePress(view);
+            requestBatteryExemption();
+        });
+
+        batteryCard.addView(
+                batteryActionButton,
+                match()
+        );
+
+        LinearLayout.LayoutParams cardParams =
+                match();
+
+        cardParams.topMargin =
+                dp(20);
+
+        root.addView(
+                batteryCard,
+                cardParams
+        );
+    }
+
+    private boolean isBatteryOptimisationDisabled() {
+
+        PowerManager powerManager =
+                (PowerManager) getSystemService(
+                        POWER_SERVICE
+                );
+
+        return powerManager != null
+                && powerManager.isIgnoringBatteryOptimizations(
+                        getPackageName()
+                );
+    }
+
+    private void updateBatteryCard() {
+
+        boolean unrestricted =
+                isBatteryOptimisationDisabled();
+
+        if (unrestricted) {
+
+            batteryStatusText.setText(
+                    "Battery restrictions are disabled. " +
+                    "Android can keep Reels Blocker active while the phone is idle."
+            );
+
+            batteryStatusText.setTextColor(
+                    GREEN
+            );
+
+            batteryActionButton.setText(
+                    "Battery setting enabled ✓"
+            );
+
+            batteryActionButton.setEnabled(
+                    false
+            );
+
+            batteryActionButton.setAlpha(
+                    0.70f
+            );
+
+            batteryActionButton.setBackground(
+                    rounded(
+                            withAlpha(GREEN, 65),
+                            dp(26),
+                            withAlpha(GREEN, 130)
+                    )
+            );
+
+            batteryCard.setBackground(
+                    rounded(
+                            withAlpha(GREEN, 28),
+                            dp(20),
+                            withAlpha(GREEN, 130)
+                    )
+            );
+
+        } else {
+
+            batteryStatusText.setText(
+                    "Allow Reels Blocker to run without battery restrictions. " +
+                    "This helps Android keep protection active when the phone is idle."
+            );
+
+            batteryStatusText.setTextColor(
+                    TEXT_DIM
+            );
+
+            batteryActionButton.setText(
+                    "Disable battery optimisation"
+            );
+
+            batteryActionButton.setEnabled(
+                    true
+            );
+
+            batteryActionButton.setAlpha(
+                    1f
+            );
+
+            GradientDrawable buttonBackground =
+                    new GradientDrawable(
+                            GradientDrawable.Orientation.LEFT_RIGHT,
+                            new int[]{
+                                    RED,
+                                    PURPLE
+                            }
+                    );
+
+            buttonBackground.setCornerRadius(
+                    dp(26)
+            );
+
+            batteryActionButton.setBackground(
+                    buttonBackground
+            );
+
+            batteryCard.setBackground(
+                    rounded(
+                            withAlpha(AMBER, 24),
+                            dp(20),
+                            withAlpha(AMBER, 150)
+                    )
+            );
+        }
+    }
+
+    private void requestBatteryExemption() {
+
+        if (isBatteryOptimisationDisabled()) {
+            updateBatteryCard();
+            return;
+        }
+
+        new AlertDialog.Builder(
+                this,
+                android.R.style.Theme_DeviceDefault_Dialog_Alert
+        )
+                .setTitle(
+                        "Keep protection active"
+                )
+                .setMessage(
+                        "Android may restrict background activity while the phone is idle.\n\n" +
+                        "On the next screen, tap Allow to let Reels Blocker run without battery restrictions."
+                )
+                .setPositiveButton(
+                        "Continue",
+                        (dialog, which) ->
+                                openBatteryExemptionRequest()
+                )
+                .setNegativeButton(
+                        "Not now",
+                        null
+                )
+                .show();
+    }
+
+    private void openBatteryExemptionRequest() {
+
+        try {
+
+            Intent requestIntent =
+                    new Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    );
+
+            requestIntent.setData(
+                    Uri.parse(
+                            "package:" + getPackageName()
+                    )
+            );
+
+            startActivity(
+                    requestIntent
+            );
+
+        } catch (Exception error) {
+
+            openBatterySettings();
+        }
+    }
+
+    private void openBatterySettings() {
+
+        try {
+
+            Intent settingsIntent =
+                    new Intent(
+                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                    );
+
+            startActivity(
+                    settingsIntent
+            );
+
+        } catch (Exception error) {
+
+            openAppInfo();
+        }
+    }
+
+    // =========================================================
     // SETUP CARD
     // =========================================================
 
@@ -397,7 +687,7 @@ public class MainActivity extends Activity {
                 match();
 
         cardParams.topMargin =
-                dp(22);
+                dp(18);
 
         root.addView(
                 setupCard,
@@ -500,8 +790,6 @@ public class MainActivity extends Activity {
 
     private void addButtons(LinearLayout root) {
 
-        // Primary button
-
         primaryButton =
                 createText(
                         "",
@@ -542,8 +830,9 @@ public class MainActivity extends Activity {
                 dp(8)
         );
 
-        primaryButton.setOnClickListener(v -> {
-            animatePress(v);
+        primaryButton.setOnClickListener(view -> {
+
+            animatePress(view);
 
             if (isServiceEnabled()) {
                 openAccessibilitySettings();
@@ -562,9 +851,6 @@ public class MainActivity extends Activity {
                 primaryButton,
                 primaryParams
         );
-
-
-        // Restricted settings helper
 
         restrictedButton =
                 createText(
@@ -593,8 +879,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-        restrictedButton.setOnClickListener(v -> {
-            animatePress(v);
+        restrictedButton.setOnClickListener(view -> {
+            animatePress(view);
             showRestrictedSettingsHelp();
         });
 
@@ -609,12 +895,9 @@ public class MainActivity extends Activity {
                 restrictedParams
         );
 
-
-        // Hide app icon
-
         hideButton =
                 createText(
-                        "Hide app icon",
+                        "",
                         14,
                         Color.WHITE,
                         false
@@ -639,8 +922,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-        hideButton.setOnClickListener(v -> {
-            animatePress(v);
+        hideButton.setOnClickListener(view -> {
+            animatePress(view);
             handleHideIcon();
         });
 
@@ -657,7 +940,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // PRIVACY
+    // PRIVACY NOTE
     // =========================================================
 
     private void addPrivacyNote(LinearLayout root) {
@@ -693,7 +976,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+
         updateUi();
+        updateBatteryCard();
     }
 
     private void updateUi() {
@@ -706,7 +991,9 @@ public class MainActivity extends Activity {
                         ? GREEN
                         : RED;
 
-        updateGlow(statusColor);
+        updateGlow(
+                statusColor
+        );
 
         if (accessibilityOn) {
 
@@ -855,9 +1142,9 @@ public class MainActivity extends Activity {
                         "Turn on Reels Blocker"
                 )
                 .setMessage(
-                        "Reels Blocker uses Android Accessibility " +
-                        "to detect supported Reels and Shorts navigation controls " +
-                        "and return you from those tabs.\n\n" +
+                        "Reels Blocker uses Android Accessibility to detect " +
+                        "supported Reels and Shorts navigation controls and return " +
+                        "you from those tabs.\n\n" +
                         "Tap Continue to open Android Accessibility settings."
                 )
                 .setPositiveButton(
@@ -920,9 +1207,10 @@ public class MainActivity extends Activity {
                         "Accessibility unavailable?"
                 )
                 .setMessage(
-                        "If Android has restricted Accessibility for this app, " +
-                        "open App Info and check the available options for allowing " +
-                        "restricted settings. The exact menu can vary by device."
+                        "Android may restrict Accessibility for an app installed " +
+                        "from an APK.\n\n" +
+                        "Open App Info and check whether an option such as " +
+                        "'Allow restricted settings' is available."
                 )
                 .setPositiveButton(
                         "Open App Info",
@@ -953,15 +1241,14 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // HIDE / SHOW LAUNCHER ICON
+    // HIDE OR SHOW LAUNCHER ICON
     // =========================================================
 
     private ComponentName getLauncherAlias() {
 
         return new ComponentName(
                 this,
-                getPackageName()
-                        + ".LauncherAlias"
+                getPackageName() + ".LauncherAlias"
         );
     }
 
@@ -1001,9 +1288,9 @@ public class MainActivity extends Activity {
                 )
                 .setMessage(
                         "Reels Blocker will disappear from the normal app launcher.\n\n" +
-                        "The Accessibility service can continue independently.\n\n" +
-                        "Before hiding it, make sure you know how to reopen the " +
-                        "Reels Blocker settings screen from Android Accessibility settings."
+                        "The Accessibility service can continue working.\n\n" +
+                        "Before hiding the icon, make sure the Reels Blocker screen " +
+                        "can be reopened from Android Accessibility settings."
                 )
                 .setPositiveButton(
                         "Hide icon",
@@ -1025,8 +1312,7 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void setLauncherHidden(
-            boolean hidden) {
+    private void setLauncherHidden(boolean hidden) {
 
         int newState =
                 hidden
@@ -1047,10 +1333,10 @@ public class MainActivity extends Activity {
     // ANIMATIONS
     // =========================================================
 
-    private void startEntranceAnimation(
-            View root) {
+    private void startEntranceAnimation(View root) {
 
         root.setAlpha(0f);
+
         root.setTranslationY(
                 dp(25)
         );
@@ -1111,8 +1397,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void updateGlow(
-            int color) {
+    private void updateGlow(int color) {
 
         GradientDrawable glow =
                 new GradientDrawable();
@@ -1142,8 +1427,7 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void animatePress(
-            View view) {
+    private void animatePress(View view) {
 
         view.animate()
                 .scaleX(0.96f)
