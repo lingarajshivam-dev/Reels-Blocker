@@ -16,33 +16,35 @@ import java.util.Map;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
-    private static final long REDIRECT_GAP = 650L;
+    private static final String INSTAGRAM =
+            "com.instagram.android";
 
-private long lastRedirectAt = 0L;
-private String lastRedirectPackage = "";
-    private static final String INSTAGRAM = "com.instagram.android";
-    private static final String YOUTUBE = "com.google.android.youtube";
-    private static final String FACEBOOK = "com.facebook.katana";
+    private static final String YOUTUBE =
+            "com.google.android.youtube";
+
+    private static final String FACEBOOK =
+            "com.facebook.katana";
 
     private static final long QUICK_GAP_MAX = 800L;
     private static final long PAUSE_MIN = 900L;
     private static final long PAUSE_MAX = 3000L;
     private static final long DUPLICATE_EVENT_MS = 80L;
-    private static final long UNLOCK_DURATION = 10L * 60L * 1000L;
-    private static final long BACK_ACTION_GAP = 250L;
+
+    private static final long UNLOCK_DURATION =
+            10L * 60L * 1000L;
+
+    private static final long EXTERNAL_ENTRY_WINDOW =
+            6000L;
+
+    private static final long DM_ENTRY_WINDOW =
+            5000L;
+
+    private static final long REDIRECT_GAP =
+            650L;
 
     /*
-     * External links normally open the supported app shortly after the
-     * foreground package changes. This window allows the first externally
-     * opened Reel or Short.
+     * Known player IDs.
      */
-    private static final long EXTERNAL_ENTRY_WINDOW = 6000L;
-
-    /*
-     * How long to remember that the user was inside an Instagram DM.
-     */
-    private static final long DM_ENTRY_WINDOW = 5000L;
-
     private static final String[] YOUTUBE_SHORT_IDS = {
             YOUTUBE + ":id/reel_watch_fragment_root",
             YOUTUBE + ":id/reel_recycler",
@@ -72,6 +74,9 @@ private String lastRedirectPackage = "";
             FACEBOOK + ":id/watch_reels_container"
     };
 
+    /*
+     * Instagram DM markers.
+     */
     private static final String[] INSTAGRAM_DM_IDS = {
             INSTAGRAM + ":id/row_thread_composer_edittext",
             INSTAGRAM + ":id/direct_thread_container",
@@ -92,25 +97,26 @@ private String lastRedirectPackage = "";
     private String foregroundPackage = "";
     private String patternPackage = "";
 
-    private long lastBackActionAt = 0L;
+    private String externalEntryPackage = "";
+
     private long externalEntryUntil = 0L;
     private long dmEntryUntil = 0L;
 
-    private String externalEntryPackage = "";
-
-    /*
-     * Becomes true after a valid DM or external-link player is allowed.
-     * Cleared when the relevant social app is left.
-     */
     private boolean allowedExternalPlayer = false;
+
+    private long lastRedirectAt = 0L;
+    private String lastRedirectPackage = "";
 
     private final Runnable screenCheck =
             this::checkCurrentScreen;
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
+    public void onAccessibilityEvent(
+            AccessibilityEvent event) {
 
-        if (event == null || event.getPackageName() == null) {
+        if (event == null
+                || event.getPackageName() == null) {
+
             return;
         }
 
@@ -120,23 +126,28 @@ private String lastRedirectPackage = "";
         int eventType =
                 event.getEventType();
 
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            handleForegroundChange(packageName);
+        /*
+         * Track foreground changes for unlock reset
+         * and external/direct-link detection.
+         */
+        if (eventType
+                == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+
+            handleForegroundChange(
+                    packageName
+            );
         }
 
         if (!isSupportedPackage(packageName)) {
             return;
         }
 
-        /*
-         * Temporarily unlocked application.
-         */
         if (isUnlocked(packageName)) {
             return;
         }
 
         /*
-         * Remember when the user is visibly inside an Instagram DM.
+         * Remember when Instagram DM screen is visible.
          */
         if (INSTAGRAM.equals(packageName)) {
 
@@ -144,7 +155,9 @@ private String lastRedirectPackage = "";
                     getRootInActiveWindow();
 
             if (root != null
-                    && containsVisibleId(root, INSTAGRAM_DM_IDS)) {
+                    && containsVisibleId(
+                            root,
+                            INSTAGRAM_DM_IDS)) {
 
                 dmEntryUntil =
                         SystemClock.elapsedRealtime()
@@ -153,18 +166,27 @@ private String lastRedirectPackage = "";
         }
 
         boolean clickEvent =
-                eventType == AccessibilityEvent.TYPE_VIEW_CLICKED;
+                eventType
+                        == AccessibilityEvent.TYPE_VIEW_CLICKED;
 
         boolean selectedEvent =
-                eventType == AccessibilityEvent.TYPE_VIEW_SELECTED;
+                eventType
+                        == AccessibilityEvent.TYPE_VIEW_SELECTED;
 
+        /*
+         * Detect dedicated Reels / Shorts navigation controls.
+         */
         if (clickEvent || selectedEvent) {
 
             String label =
-                    getCombinedEventLabel(event);
+                    getCombinedEventLabel(
+                            event
+                    );
 
             String viewIds =
-                    getSourceViewIds(event);
+                    getSourceViewIds(
+                            event
+                    );
 
             if (isBlockedNavigationControl(
                     packageName,
@@ -172,30 +194,43 @@ private String lastRedirectPackage = "";
                     viewIds)) {
 
                 /*
-                 * A direct tab click is never treated as an external
-                 * or DM entry.
+                 * A direct tab click is deliberately blocked,
+                 * so it must not inherit any previous
+                 * external-link exception.
                  */
                 clearAllowedEntry();
 
                 long now =
                         SystemClock.elapsedRealtime();
 
+                /*
+                 * Only CLICKED events count toward the secret
+                 * tap-tap / pause / tap-tap unlock pattern.
+                 */
                 if (clickEvent
-                        && registerPatternTap(packageName, now)) {
+                        && registerPatternTap(
+                                packageName,
+                                now)) {
 
-                    unlockPackage(packageName);
+                    unlockPackage(
+                            packageName
+                    );
+
                     return;
                 }
 
-                redirectToFeed(packageName);
+                redirectToFeed(
+                        packageName
+                );
+
                 scheduleScreenChecks();
+
                 return;
             }
         }
 
         /*
-         * Check the actual player after screen, content, click,
-         * selection, or scroll events.
+         * Check players opened through Home/feed/profile/search.
          */
         scheduleScreenChecks();
     }
@@ -204,7 +239,8 @@ private String lastRedirectPackage = "";
     // SUPPORTED APPS
     // =========================================================
 
-    private boolean isSupportedPackage(String packageName) {
+    private boolean isSupportedPackage(
+            String packageName) {
 
         return INSTAGRAM.equals(packageName)
                 || YOUTUBE.equals(packageName)
@@ -215,9 +251,12 @@ private String lastRedirectPackage = "";
     // FOREGROUND TRACKING
     // =========================================================
 
-    private void handleForegroundChange(String newPackage) {
+    private void handleForegroundChange(
+            String newPackage) {
 
-        if (newPackage == null || newPackage.isEmpty()) {
+        if (newPackage == null
+                || newPackage.isEmpty()) {
+
             return;
         }
 
@@ -225,21 +264,23 @@ private String lastRedirectPackage = "";
                 foregroundPackage;
 
         /*
-         * Leaving a supported app immediately resets its timer,
-         * secret pattern, and allowed-entry state.
+         * Leaving a supported application immediately
+         * removes its temporary unlock.
          */
         if (!oldPackage.isEmpty()
                 && isSupportedPackage(oldPackage)
                 && !oldPackage.equals(newPackage)) {
 
-            resetPackageState(oldPackage);
+            resetPackageState(
+                    oldPackage
+            );
+
             clearAllowedEntry();
         }
 
         /*
-         * Entering Instagram, YouTube, or Facebook from another
-         * package can indicate a direct link, notification,
-         * Messenger link, WhatsApp link, browser link, or email link.
+         * Entering a supported app from another package
+         * may represent a direct external link.
          */
         if (!isSupportedPackage(oldPackage)
                 && isSupportedPackage(newPackage)) {
@@ -256,29 +297,43 @@ private String lastRedirectPackage = "";
                 newPackage;
     }
 
-    private void resetPackageState(String packageName) {
+    private void resetPackageState(
+            String packageName) {
 
-        unlockedUntil.remove(packageName);
+        unlockedUntil.remove(
+                packageName
+        );
 
-        if (packageName.equals(patternPackage)) {
+        if (packageName.equals(
+                patternPackage)) {
+
             tapTimes.clear();
             patternPackage = "";
         }
 
-        lastBackActionAt = 0L;
+        lastRedirectAt = 0L;
+        lastRedirectPackage = "";
     }
+
+    // =========================================================
+    // DIRECT LINK / DM EXCEPTION
+    // =========================================================
 
     private void clearAllowedEntry() {
 
         externalEntryPackage = "";
         externalEntryUntil = 0L;
+
         dmEntryUntil = 0L;
+
         allowedExternalPlayer = false;
     }
 
-    private boolean isExternalEntryActive(String packageName) {
+    private boolean isExternalEntryActive(
+            String packageName) {
 
-        return packageName.equals(externalEntryPackage)
+        return packageName.equals(
+                externalEntryPackage)
                 && SystemClock.elapsedRealtime()
                 <= externalEntryUntil;
     }
@@ -290,20 +345,33 @@ private String lastRedirectPackage = "";
     }
 
     // =========================================================
-    // PLAYER DETECTION
+    // PLAYER CHECK
     // =========================================================
 
     private void scheduleScreenChecks() {
 
-        handler.removeCallbacks(screenCheck);
+        handler.removeCallbacks(
+                screenCheck
+        );
 
         /*
-         * Immediate and delayed checks handle asynchronously
-         * rendered Shorts and Reels screens.
+         * Multiple checks help with asynchronously-rendered
+         * Reels / Shorts screens.
          */
-        handler.postDelayed(screenCheck, 100L);
-        handler.postDelayed(screenCheck, 350L);
-        handler.postDelayed(screenCheck, 750L);
+        handler.postDelayed(
+                screenCheck,
+                100L
+        );
+
+        handler.postDelayed(
+                screenCheck,
+                350L
+        );
+
+        handler.postDelayed(
+                screenCheck,
+                750L
+        );
     }
 
     private void checkCurrentScreen() {
@@ -311,7 +379,9 @@ private String lastRedirectPackage = "";
         AccessibilityNodeInfo root =
                 getRootInActiveWindow();
 
-        if (root == null || root.getPackageName() == null) {
+        if (root == null
+                || root.getPackageName() == null) {
+
             return;
         }
 
@@ -325,18 +395,36 @@ private String lastRedirectPackage = "";
         }
 
         boolean playerVisible =
-                isBlockedPlayerVisible(root, packageName);
+                isBlockedPlayerVisible(
+                        root,
+                        packageName
+                );
 
+        /*
+         * Critical:
+         *
+         * When the externally allowed player disappears,
+         * immediately end the exception.
+         *
+         * This prevents an externally-opened Short from
+         * accidentally allowing the next Short selected
+         * from the YouTube Home feed.
+         */
         if (!playerVisible) {
+
+            allowedExternalPlayer = false;
+
             return;
         }
 
         /*
-         * Direct external link or Messenger/WhatsApp/browser entry.
+         * Direct external link.
          */
-        if (isExternalEntryActive(packageName)) {
+        if (isExternalEntryActive(
+                packageName)) {
 
             allowedExternalPlayer = true;
+
             externalEntryUntil = 0L;
             externalEntryPackage = "";
 
@@ -344,7 +432,7 @@ private String lastRedirectPackage = "";
         }
 
         /*
-         * Instagram Reel opened from a recently visible DM.
+         * Instagram DM Reel.
          */
         if (INSTAGRAM.equals(packageName)
                 && isDmEntryActive()) {
@@ -356,19 +444,20 @@ private String lastRedirectPackage = "";
         }
 
         /*
-         * Continue allowing the external/DM player until the social
-         * app is left. Direct tab taps clear this before detection.
+         * Continue allowing the currently-open
+         * externally-entered player.
          */
         if (allowedExternalPlayer) {
             return;
         }
 
         /*
-         * A player opened inside YouTube Home, Facebook Home,
-         * search, profile, group, or dedicated Reels/Shorts tab
-         * is blocked.
+         * Anything else is an internal Reels / Shorts player.
+         * Redirect to Home/Feed instead of repeatedly pressing Back.
          */
-        redirectToFeed(packageName);
+        redirectToFeed(
+                packageName
+        );
     }
 
     private boolean isBlockedPlayerVisible(
@@ -377,7 +466,10 @@ private String lastRedirectPackage = "";
 
         if (YOUTUBE.equals(packageName)) {
 
-            if (containsVisibleId(root, YOUTUBE_SHORT_IDS)) {
+            if (containsVisibleId(
+                    root,
+                    YOUTUBE_SHORT_IDS)) {
+
                 return true;
             }
 
@@ -389,7 +481,10 @@ private String lastRedirectPackage = "";
 
         if (INSTAGRAM.equals(packageName)) {
 
-            if (containsVisibleId(root, INSTAGRAM_REEL_IDS)) {
+            if (containsVisibleId(
+                    root,
+                    INSTAGRAM_REEL_IDS)) {
+
                 return true;
             }
 
@@ -401,7 +496,10 @@ private String lastRedirectPackage = "";
 
         if (FACEBOOK.equals(packageName)) {
 
-            if (containsVisibleId(root, FACEBOOK_REEL_IDS)) {
+            if (containsVisibleId(
+                    root,
+                    FACEBOOK_REEL_IDS)) {
+
                 return true;
             }
 
@@ -421,7 +519,9 @@ private String lastRedirectPackage = "";
         for (String id : ids) {
 
             List<AccessibilityNodeInfo> nodes =
-                    root.findAccessibilityNodeInfosByViewId(id);
+                    root.findAccessibilityNodeInfosByViewId(
+                            id
+                    );
 
             if (nodes == null) {
                 continue;
@@ -440,10 +540,10 @@ private String lastRedirectPackage = "";
         return false;
     }
 
-    /*
-     * Fallback detection for application versions that do not
-     * expose stable view IDs.
-     */
+    // =========================================================
+    // PLAYER FALLBACK DETECTION
+    // =========================================================
+
     private boolean hasPlayerSignals(
             AccessibilityNodeInfo root,
             String playerType) {
@@ -457,15 +557,17 @@ private String lastRedirectPackage = "";
                 0
         );
 
-        boolean correctPlayerLabel;
+        boolean labelMatches;
 
-        if ("shorts".equals(playerType)) {
+        if ("shorts".equals(
+                playerType)) {
 
-            correctPlayerLabel =
+            labelMatches =
                     signals.shorts;
+
         } else {
 
-            correctPlayerLabel =
+            labelMatches =
                     signals.reels;
         }
 
@@ -487,11 +589,7 @@ private String lastRedirectPackage = "";
             actionCount++;
         }
 
-        /*
-         * Require the player label and at least two typical
-         * full-screen short-video controls.
-         */
-        return correctPlayerLabel
+        return labelMatches
                 && actionCount >= 2;
     }
 
@@ -511,9 +609,11 @@ private String lastRedirectPackage = "";
                 normalize(
                         valueOf(node.getText())
                                 + " "
-                                + valueOf(node.getContentDescription())
+                                + valueOf(
+                                        node.getContentDescription())
                                 + " "
-                                + valueOf(node.getViewIdResourceName())
+                                + valueOf(
+                                        node.getViewIdResourceName())
                 );
 
         if (!text.isEmpty()) {
@@ -532,19 +632,31 @@ private String lastRedirectPackage = "";
                 signals.reels = true;
             }
 
-            if (containsActionWord(text, "like")) {
+            if (containsActionWord(
+                    text,
+                    "like")) {
+
                 signals.like = true;
             }
 
-            if (containsActionWord(text, "comment")) {
+            if (containsActionWord(
+                    text,
+                    "comment")) {
+
                 signals.comment = true;
             }
 
-            if (containsActionWord(text, "share")) {
+            if (containsActionWord(
+                    text,
+                    "share")) {
+
                 signals.share = true;
             }
 
-            if (containsActionWord(text, "remix")) {
+            if (containsActionWord(
+                    text,
+                    "remix")) {
+
                 signals.remix = true;
             }
         }
@@ -552,23 +664,24 @@ private String lastRedirectPackage = "";
         int childCount =
                 node.getChildCount();
 
-        for (int index = 0;
-             index < childCount;
-             index++) {
+        for (int i = 0;
+             i < childCount;
+             i++) {
 
             AccessibilityNodeInfo child =
-                    node.getChild(index);
+                    node.getChild(i);
 
-            if (child != null) {
-
-                scanNodeTree(
-                        child,
-                        signals,
-                        depth + 1
-                );
-
-                child.recycle();
+            if (child == null) {
+                continue;
             }
+
+            scanNodeTree(
+                    child,
+                    signals,
+                    depth + 1
+            );
+
+            child.recycle();
         }
     }
 
@@ -577,16 +690,21 @@ private String lastRedirectPackage = "";
             String word) {
 
         return text.equals(word)
-                || text.startsWith(word + " ")
-                || text.startsWith(word + ",")
-                || text.contains(" " + word + " ")
-                || text.endsWith(" " + word);
+                || text.startsWith(
+                        word + " ")
+                || text.startsWith(
+                        word + ",")
+                || text.contains(
+                        " " + word + " ")
+                || text.endsWith(
+                        " " + word);
     }
 
     private static class PlayerSignals {
 
         boolean shorts;
         boolean reels;
+
         boolean like;
         boolean comment;
         boolean share;
@@ -594,31 +712,31 @@ private String lastRedirectPackage = "";
 
         boolean isComplete() {
 
-            int actionCount = 0;
+            int actions = 0;
 
             if (like) {
-                actionCount++;
+                actions++;
             }
 
             if (comment) {
-                actionCount++;
+                actions++;
             }
 
             if (share) {
-                actionCount++;
+                actions++;
             }
 
             if (remix) {
-                actionCount++;
+                actions++;
             }
 
             return (shorts || reels)
-                    && actionCount >= 3;
+                    && actions >= 3;
         }
     }
 
     // =========================================================
-    // NAVIGATION CONTROL DETECTION
+    // TAB DETECTION
     // =========================================================
 
     private boolean isBlockedNavigationControl(
@@ -626,10 +744,14 @@ private String lastRedirectPackage = "";
             String label,
             String viewIds) {
 
-        if (YOUTUBE.equals(packageName)) {
+        if (YOUTUBE.equals(
+                packageName)) {
 
             boolean labelMatches =
-                    containsWord(label, "shorts");
+                    containsWord(
+                            label,
+                            "shorts"
+                    );
 
             boolean navigationMatches =
                     viewIds.contains("pivot")
@@ -642,10 +764,14 @@ private String lastRedirectPackage = "";
                     || label.contains("tab"));
         }
 
-        if (INSTAGRAM.equals(packageName)) {
+        if (INSTAGRAM.equals(
+                packageName)) {
 
             boolean labelMatches =
-                    containsWord(label, "reels");
+                    containsWord(
+                            label,
+                            "reels"
+                    );
 
             boolean navigationMatches =
                     viewIds.contains("tab")
@@ -659,12 +785,18 @@ private String lastRedirectPackage = "";
                     || viewIds.isEmpty());
         }
 
-        if (FACEBOOK.equals(packageName)) {
+        if (FACEBOOK.equals(
+                packageName)) {
 
             boolean labelMatches =
-                    containsWord(label, "reels")
-                            || label.contains("watch reels")
-                            || label.contains("video reels");
+                    containsWord(
+                            label,
+                            "reels"
+                    )
+                            || label.contains(
+                                    "watch reels")
+                            || label.contains(
+                                    "video reels");
 
             boolean navigationMatches =
                     viewIds.contains("tab")
@@ -684,6 +816,315 @@ private String lastRedirectPackage = "";
         return false;
     }
 
+    // =========================================================
+    // REDIRECT TO HOME / FEED
+    // =========================================================
+
+    private void redirectToFeed(
+            String packageName) {
+
+        long now =
+                SystemClock.elapsedRealtime();
+
+        /*
+         * Repeated taps should not generate repeated navigation.
+         */
+        if (packageName.equals(
+                lastRedirectPackage)
+                && now - lastRedirectAt
+                < REDIRECT_GAP) {
+
+            return;
+        }
+
+        lastRedirectAt = now;
+        lastRedirectPackage = packageName;
+
+        AccessibilityNodeInfo root =
+                getRootInActiveWindow();
+
+        if (root == null) {
+
+            performSingleBackFallback();
+            return;
+        }
+
+        boolean redirected = false;
+
+        if (YOUTUBE.equals(
+                packageName)) {
+
+            redirected =
+                    clickNavigationItem(
+                            root,
+                            new String[]{
+                                    "home",
+                                    "home tab",
+                                    "youtube home"
+                            },
+                            new String[]{
+                                    "pivot",
+                                    "bottom",
+                                    "navigation",
+                                    "home"
+                            }
+                    );
+        }
+
+        else if (INSTAGRAM.equals(
+                packageName)) {
+
+            redirected =
+                    clickNavigationItem(
+                            root,
+                            new String[]{
+                                    "home",
+                                    "home tab",
+                                    "instagram home"
+                            },
+                            new String[]{
+                                    "tab",
+                                    "navigation",
+                                    "home",
+                                    "feed"
+                            }
+                    );
+        }
+
+        else if (FACEBOOK.equals(
+                packageName)) {
+
+            redirected =
+                    clickNavigationItem(
+                            root,
+                            new String[]{
+                                    "home",
+                                    "home tab",
+                                    "feed",
+                                    "news feed"
+                            },
+                            new String[]{
+                                    "tab",
+                                    "navigation",
+                                    "home",
+                                    "feed"
+                            }
+                    );
+        }
+
+        /*
+         * Exactly one Back action if Home/Feed cannot
+         * be identified in the current Accessibility tree.
+         */
+        if (!redirected) {
+            performSingleBackFallback();
+        }
+    }
+
+    private boolean clickNavigationItem(
+            AccessibilityNodeInfo root,
+            String[] acceptedLabels,
+            String[] navigationHints) {
+
+        return findAndClickNavigationItem(
+                root,
+                acceptedLabels,
+                navigationHints,
+                0
+        );
+    }
+
+    private boolean findAndClickNavigationItem(
+            AccessibilityNodeInfo node,
+            String[] acceptedLabels,
+            String[] navigationHints,
+            int depth) {
+
+        if (node == null
+                || depth > 30) {
+
+            return false;
+        }
+
+        String text =
+                normalize(
+                        valueOf(node.getText())
+                                + " "
+                                + valueOf(
+                                        node.getContentDescription())
+                );
+
+        String viewId =
+                normalize(
+                        valueOf(
+                                node.getViewIdResourceName())
+                );
+
+        boolean labelMatches =
+                matchesAnyNavigationLabel(
+                        text,
+                        acceptedLabels
+                );
+
+        boolean navigationContext =
+                viewId.isEmpty()
+                        || containsAny(
+                                viewId,
+                                navigationHints
+                        );
+
+        if (labelMatches
+                && navigationContext) {
+
+            AccessibilityNodeInfo clickable =
+                    findClickableParent(
+                            node
+                    );
+
+            if (clickable != null) {
+
+                boolean clicked =
+                        clickable.performAction(
+                                AccessibilityNodeInfo.ACTION_CLICK
+                        );
+
+                if (clickable != node) {
+                    clickable.recycle();
+                }
+
+                if (clicked) {
+                    return true;
+                }
+            }
+        }
+
+        int childCount =
+                node.getChildCount();
+
+        for (int i = 0;
+             i < childCount;
+             i++) {
+
+            AccessibilityNodeInfo child =
+                    node.getChild(i);
+
+            if (child == null) {
+                continue;
+            }
+
+            boolean clicked =
+                    findAndClickNavigationItem(
+                            child,
+                            acceptedLabels,
+                            navigationHints,
+                            depth + 1
+                    );
+
+            child.recycle();
+
+            if (clicked) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private AccessibilityNodeInfo findClickableParent(
+            AccessibilityNodeInfo node) {
+
+        AccessibilityNodeInfo current =
+                node;
+
+        int depth = 0;
+
+        while (current != null
+                && depth < 5) {
+
+            if (current.isClickable()
+                    && current.isEnabled()
+                    && current.isVisibleToUser()) {
+
+                return current;
+            }
+
+            AccessibilityNodeInfo parent =
+                    current.getParent();
+
+            if (current != node) {
+                current.recycle();
+            }
+
+            current = parent;
+            depth++;
+        }
+
+        return null;
+    }
+
+    private boolean matchesAnyNavigationLabel(
+            String text,
+            String[] labels) {
+
+        if (text == null
+                || text.isEmpty()) {
+
+            return false;
+        }
+
+        for (String label : labels) {
+
+            if (text.equals(label)
+                    || text.startsWith(
+                            label + ",")
+                    || text.startsWith(
+                            label + " ")
+                    || text.contains(
+                            " " + label + " tab")
+                    || text.contains(
+                            label + " selected")) {
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean containsAny(
+            String value,
+            String[] candidates) {
+
+        if (value == null
+                || value.isEmpty()) {
+
+            return false;
+        }
+
+        for (String candidate :
+                candidates) {
+
+            if (value.contains(
+                    candidate)) {
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void performSingleBackFallback() {
+
+        performGlobalAction(
+                GLOBAL_ACTION_BACK
+        );
+    }
+
+    // =========================================================
+    // EVENT LABEL HELPERS
+    // =========================================================
+
     private String getCombinedEventLabel(
             AccessibilityEvent event) {
 
@@ -692,8 +1133,13 @@ private String lastRedirectPackage = "";
 
         if (event.getText() != null) {
 
-            for (CharSequence value : event.getText()) {
-                appendValue(builder, value);
+            for (CharSequence value :
+                    event.getText()) {
+
+                appendValue(
+                        builder,
+                        value
+                );
             }
         }
 
@@ -707,7 +1153,8 @@ private String lastRedirectPackage = "";
 
         int depth = 0;
 
-        while (current != null && depth < 6) {
+        while (current != null
+                && depth < 6) {
 
             appendValue(
                     builder,
@@ -755,7 +1202,8 @@ private String lastRedirectPackage = "";
 
         int depth = 0;
 
-        while (current != null && depth < 6) {
+        while (current != null
+                && depth < 6) {
 
             appendValue(
                     builder,
@@ -817,34 +1265,45 @@ private String lastRedirectPackage = "";
 
         return value
                 .trim()
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
+                .toLowerCase(
+                        Locale.ROOT)
+                .replaceAll(
+                        "\\s+",
+                        " "
+                );
     }
 
     private boolean containsWord(
             String text,
             String word) {
 
-        if (text == null || text.isEmpty()) {
+        if (text == null
+                || text.isEmpty()) {
+
             return false;
         }
 
         return text.equals(word)
-                || text.startsWith(word + " ")
-                || text.startsWith(word + ",")
-                || text.contains(" " + word + " ")
-                || text.endsWith(" " + word);
+                || text.startsWith(
+                        word + " ")
+                || text.startsWith(
+                        word + ",")
+                || text.contains(
+                        " " + word + " ")
+                || text.endsWith(
+                        " " + word);
     }
 
     // =========================================================
-    // TAP PATTERN
+    // SECRET UNLOCK PATTERN
     // =========================================================
 
     private boolean registerPatternTap(
             String packageName,
             long now) {
 
-        if (!packageName.equals(patternPackage)) {
+        if (!packageName.equals(
+                patternPackage)) {
 
             tapTimes.clear();
             patternPackage = packageName;
@@ -860,7 +1319,9 @@ private String lastRedirectPackage = "";
             long gap =
                     now - previousTap;
 
-            if (gap < DUPLICATE_EVENT_MS) {
+            if (gap
+                    < DUPLICATE_EVENT_MS) {
+
                 return false;
             }
 
@@ -872,6 +1333,7 @@ private String lastRedirectPackage = "";
         tapTimes.add(now);
 
         while (tapTimes.size() > 4) {
+
             tapTimes.remove(0);
         }
 
@@ -892,10 +1354,14 @@ private String lastRedirectPackage = "";
                         - tapTimes.get(2);
 
         boolean matched =
-                firstPairGap <= QUICK_GAP_MAX
-                        && pauseGap >= PAUSE_MIN
-                        && pauseGap <= PAUSE_MAX
-                        && secondPairGap <= QUICK_GAP_MAX;
+                firstPairGap
+                        <= QUICK_GAP_MAX
+                        && pauseGap
+                        >= PAUSE_MIN
+                        && pauseGap
+                        <= PAUSE_MAX
+                        && secondPairGap
+                        <= QUICK_GAP_MAX;
 
         if (matched) {
 
@@ -909,7 +1375,7 @@ private String lastRedirectPackage = "";
     }
 
     // =========================================================
-    // UNLOCK
+    // TEMPORARY UNLOCK
     // =========================================================
 
     private void unlockPackage(
@@ -923,7 +1389,6 @@ private String lastRedirectPackage = "";
 
         tapTimes.clear();
         patternPackage = "";
-        lastBackActionAt = 0L;
 
         Toast.makeText(
                 this,
@@ -937,7 +1402,9 @@ private String lastRedirectPackage = "";
             String packageName) {
 
         Long expiry =
-                unlockedUntil.get(packageName);
+                unlockedUntil.get(
+                        packageName
+                );
 
         if (expiry == null) {
             return false;
@@ -949,51 +1416,40 @@ private String lastRedirectPackage = "";
             return true;
         }
 
-        resetPackageState(packageName);
+        resetPackageState(
+                packageName
+        );
 
         return false;
-    }
-
-    // =========================================================
-    // BLOCK ACTION
-    // =========================================================
-
-    private void blockNavigation() {
-
-        long now =
-                SystemClock.elapsedRealtime();
-
-        if (now - lastBackActionAt
-                < BACK_ACTION_GAP) {
-
-            return;
-        }
-
-        lastBackActionAt =
-                now;
-
-        performGlobalAction(
-                GLOBAL_ACTION_BACK
-        );
     }
 
     private String getAppName(
             String packageName) {
 
-        if (INSTAGRAM.equals(packageName)) {
+        if (INSTAGRAM.equals(
+                packageName)) {
+
             return "Instagram Reels";
         }
 
-        if (YOUTUBE.equals(packageName)) {
+        if (YOUTUBE.equals(
+                packageName)) {
+
             return "YouTube Shorts";
         }
 
-        if (FACEBOOK.equals(packageName)) {
+        if (FACEBOOK.equals(
+                packageName)) {
+
             return "Facebook Reels";
         }
 
         return "Short videos";
     }
+
+    // =========================================================
+    // SERVICE CALLBACKS
+    // =========================================================
 
     @Override
     public void onInterrupt() {
@@ -1003,89 +1459,13 @@ private String lastRedirectPackage = "";
     @Override
     public void onDestroy() {
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
+
         unlockedUntil.clear();
         tapTimes.clear();
 
         super.onDestroy();
-    }
-}
-private void redirectToFeed(String packageName) {
-
-    long now = SystemClock.elapsedRealtime();
-
-    if (packageName.equals(lastRedirectPackage)
-            && now - lastRedirectAt < REDIRECT_GAP) {
-        return;
-    }
-
-    lastRedirectAt = now;
-    lastRedirectPackage = packageName;
-
-    AccessibilityNodeInfo root =
-            getRootInActiveWindow();
-
-    if (root == null) {
-        performSingleBackFallback();
-        return;
-    }
-
-    boolean redirected = false;
-
-    if (YOUTUBE.equals(packageName)) {
-
-        redirected = clickNavigationItem(
-                root,
-                new String[]{
-                        "home",
-                        "home tab",
-                        "youtube home"
-                },
-                new String[]{
-                        "pivot",
-                        "bottom",
-                        "navigation",
-                        "home"
-                }
-        );
-
-    } else if (INSTAGRAM.equals(packageName)) {
-
-        redirected = clickNavigationItem(
-                root,
-                new String[]{
-                        "home",
-                        "home tab",
-                        "instagram home"
-                },
-                new String[]{
-                        "tab",
-                        "navigation",
-                        "home",
-                        "feed"
-                }
-        );
-
-    } else if (FACEBOOK.equals(packageName)) {
-
-        redirected = clickNavigationItem(
-                root,
-                new String[]{
-                        "home",
-                        "home tab",
-                        "feed",
-                        "news feed"
-                },
-                new String[]{
-                        "tab",
-                        "navigation",
-                        "home",
-                        "feed"
-                }
-        );
-    }
-
-    if (!redirected) {
-        performSingleBackFallback();
     }
 }
