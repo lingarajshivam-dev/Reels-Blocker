@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -26,29 +27,33 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
 
     private static final int RED = Color.parseColor("#FF3B5C");
+    private static final int PURPLE = Color.parseColor("#A13BFF");
     private static final int GREEN = Color.parseColor("#00E58F");
+    private static final int AMBER = Color.parseColor("#FFB020");
     private static final int CARD = Color.parseColor("#1AFFFFFF");
     private static final int TEXT_DIM = Color.parseColor("#B3FFFFFF");
 
     private View glowRing;
     private TextView statusPill, headline, subText;
-    private LinearLayout stepsCard;
+    private LinearLayout stepsCard, batteryRow;
+    private TextView batteryText, batteryFix;
     private TextView primaryBtn, secondaryBtn;
     private ObjectAnimator pulseX, pulseY;
+    private boolean batteryAsked = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         Window w = getWindow();
         w.setStatusBarColor(Color.parseColor("#1A0B2E"));
         w.setNavigationBarColor(Color.parseColor("#0A0A12"));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{Color.parseColor("#1A0B2E"), Color.parseColor("#120A24"),
-                        Color.parseColor("#0A0A12")});
-        scroll.setBackground(bg);
+                        Color.parseColor("#0A0A12")}));
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -56,29 +61,25 @@ public class MainActivity extends Activity {
         root.setPadding(dp(24), dp(40), dp(24), dp(32));
         scroll.addView(root);
 
-        // ---- Icon with glowing ring ----
+        // ---- Icon with glow ring ----
         FrameLayout iconBox = new FrameLayout(this);
         glowRing = new View(this);
-        FrameLayout.LayoutParams ringLp = new FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER);
-        iconBox.addView(glowRing, ringLp);
+        iconBox.addView(glowRing, new FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER));
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.drawable.ic_launcher);
-        icon.setClipToOutline(true);
         GradientDrawable iconShape = new GradientDrawable();
         iconShape.setCornerRadius(dp(30));
         icon.setBackground(iconShape);
+        icon.setClipToOutline(true);
         icon.setElevation(dp(12));
         iconBox.addView(icon, new FrameLayout.LayoutParams(dp(120), dp(120), Gravity.CENTER));
         root.addView(iconBox, new LinearLayout.LayoutParams(dp(180), dp(180)));
 
         // ---- Title ----
         TextView title = text("Reels Blocker", 30, Color.WHITE, true);
-        title.setLetterSpacing(0.02f);
         title.setPadding(0, dp(12), 0, dp(4));
         root.addView(title);
-
-        TextView tagline = text("Take back your time ⏳", 14, TEXT_DIM, false);
-        root.addView(tagline);
+        root.addView(text("Take back your time ⏳", 14, TEXT_DIM, false));
 
         // ---- Status pill ----
         statusPill = text("", 13, Color.WHITE, true);
@@ -88,7 +89,7 @@ public class MainActivity extends Activity {
         pillLp.topMargin = dp(20);
         root.addView(statusPill, pillLp);
 
-        // ---- Headline + subtext ----
+        // ---- Headline ----
         headline = text("", 22, Color.WHITE, true);
         headline.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams hLp = wrap();
@@ -99,6 +100,23 @@ public class MainActivity extends Activity {
         subText.setGravity(Gravity.CENTER);
         subText.setPadding(dp(8), dp(6), dp(8), 0);
         root.addView(subText);
+
+        // ---- Battery row ----
+        batteryRow = new LinearLayout(this);
+        batteryRow.setOrientation(LinearLayout.HORIZONTAL);
+        batteryRow.setGravity(Gravity.CENTER_VERTICAL);
+        batteryRow.setPadding(dp(18), dp(14), dp(14), dp(14));
+        batteryText = text("", 14, Color.WHITE, false);
+        batteryRow.addView(batteryText, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        batteryFix = text("Fix", 14, Color.WHITE, true);
+        batteryFix.setPadding(dp(18), dp(8), dp(18), dp(8));
+        batteryFix.setBackground(rounded(AMBER, dp(20), AMBER));
+        batteryFix.setOnClickListener(v -> { press(v); openBatteryPopup(); });
+        batteryRow.addView(batteryFix);
+        LinearLayout.LayoutParams bLp = match();
+        bLp.topMargin = dp(22);
+        root.addView(batteryRow, bLp);
 
         // ---- Steps card ----
         stepsCard = new LinearLayout(this);
@@ -113,15 +131,15 @@ public class MainActivity extends Activity {
                 "Come back here ✨"};
         for (int i = 0; i < steps.length; i++) stepsCard.addView(stepRow(i + 1, steps[i]));
         LinearLayout.LayoutParams cardLp = match();
-        cardLp.topMargin = dp(22);
+        cardLp.topMargin = dp(14);
         root.addView(stepsCard, cardLp);
 
-        // ---- Buttons ----
+        // ---- Primary button ----
         primaryBtn = text("", 17, Color.WHITE, true);
         primaryBtn.setGravity(Gravity.CENTER);
         primaryBtn.setPadding(0, dp(17), 0, dp(17));
         GradientDrawable btnBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Color.parseColor("#FF3B5C"), Color.parseColor("#A13BFF")});
+                new int[]{RED, PURPLE});
         btnBg.setCornerRadius(dp(30));
         primaryBtn.setBackground(btnBg);
         primaryBtn.setElevation(dp(8));
@@ -130,6 +148,7 @@ public class MainActivity extends Activity {
         pLp.topMargin = dp(26);
         root.addView(primaryBtn, pLp);
 
+        // ---- Secondary button ----
         secondaryBtn = text("Switch greyed out? Fix it here", 14, Color.WHITE, false);
         secondaryBtn.setGravity(Gravity.CENTER);
         secondaryBtn.setPadding(0, dp(14), 0, dp(14));
@@ -139,19 +158,21 @@ public class MainActivity extends Activity {
         sLp.topMargin = dp(12);
         root.addView(secondaryBtn, sLp);
 
-        TextView privacy = text("🔒 No data is read, stored or shared", 12, Color.parseColor("#80FFFFFF"), false);
+        // ---- Privacy note ----
+        TextView privacy = text("🔒 No data is read, stored or shared", 12,
+                Color.parseColor("#80FFFFFF"), false);
         LinearLayout.LayoutParams prLp = wrap();
         prLp.topMargin = dp(22);
         root.addView(privacy, prLp);
 
         setContentView(scroll);
 
-        // Fade-in entrance
+        // Entrance animation
         root.setAlpha(0f);
         root.setTranslationY(dp(30));
         root.animate().alpha(1f).translationY(0).setDuration(600).start();
 
-        // Pulse animation for ring
+        // Pulse animation
         pulseX = ObjectAnimator.ofFloat(glowRing, "scaleX", 0.9f, 1.08f);
         pulseY = ObjectAnimator.ofFloat(glowRing, "scaleY", 0.9f, 1.08f);
         for (ObjectAnimator a : new ObjectAnimator[]{pulseX, pulseY}) {
@@ -165,6 +186,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateUi();
+        // Automatically ask once per launch to disable battery optimisation
+        if (!batteryAsked && !isBatteryUnrestricted()) {
+            batteryAsked = true;
+            openBatteryPopup();
+        }
     }
 
     @Override
@@ -174,8 +200,10 @@ public class MainActivity extends Activity {
         pulseY.cancel();
     }
 
+    // ================= STATUS =================
     private void updateUi() {
         boolean on = isServiceEnabled();
+        boolean battOk = isBatteryUnrestricted();
         int color = on ? GREEN : RED;
 
         GradientDrawable ring = new GradientDrawable();
@@ -189,9 +217,21 @@ public class MainActivity extends Activity {
         statusPill.setBackground(rounded(withAlpha(color, 45), dp(20), color));
         statusPill.setTextColor(color);
 
+        if (battOk) {
+            batteryText.setText("🔋  Battery: Unrestricted ✓");
+            batteryRow.setBackground(rounded(withAlpha(GREEN, 30), dp(18), withAlpha(GREEN, 120)));
+            batteryFix.setVisibility(View.GONE);
+        } else {
+            batteryText.setText("🔋  Battery: Restricted");
+            batteryRow.setBackground(rounded(withAlpha(AMBER, 30), dp(18), withAlpha(AMBER, 140)));
+            batteryFix.setVisibility(View.VISIBLE);
+        }
+
         if (on) {
-            headline.setText("You're protected 🎉");
-            subText.setText("Reels are blocked automatically.\nYou can close this app now.");
+            headline.setText(battOk ? "You're protected 🎉" : "Almost there!");
+            subText.setText(battOk
+                    ? "Reels are blocked automatically.\nYou can close this app now."
+                    : "Tap 'Fix' so Android doesn't stop the blocker.");
             stepsCard.setVisibility(View.GONE);
             primaryBtn.setText("Open Accessibility Settings");
             secondaryBtn.setVisibility(View.GONE);
@@ -203,7 +243,15 @@ public class MainActivity extends Activity {
             secondaryBtn.setVisibility(Build.VERSION.SDK_INT >= 33 ? View.VISIBLE : View.GONE);
         }
 
-        if (!pulseX.isRunning()) { pulseX.start(); pulseY.start(); }
+        if (!pulseX.isRunning()) {
+            pulseX.start();
+            pulseY.start();
+        }
+    }
+
+    private boolean isBatteryUnrestricted() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
     }
 
     private boolean isServiceEnabled() {
@@ -220,8 +268,23 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    // ================= ACTIONS =================
+    private void openBatteryPopup() {
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (Exception ignored) { }
+        }
+    }
+
     private void showDisclosure() {
-        if (isServiceEnabled()) { openAccessibilitySettings(); return; }
+        if (isServiceEnabled()) {
+            openAccessibilitySettings();
+            return;
+        }
         new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Accessibility permission")
                 .setMessage("Reels Blocker uses Accessibility only to detect when a Reels/Shorts " +
@@ -256,7 +319,7 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    // ---------- UI helpers ----------
+    // ================= UI HELPERS =================
     private LinearLayout stepRow(int n, String label) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -266,7 +329,7 @@ public class MainActivity extends Activity {
         TextView num = text(String.valueOf(n), 13, Color.WHITE, true);
         num.setGravity(Gravity.CENTER);
         GradientDrawable circle = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{Color.parseColor("#FF3B5C"), Color.parseColor("#A13BFF")});
+                new int[]{RED, PURPLE});
         circle.setShape(GradientDrawable.OVAL);
         num.setBackground(circle);
         row.addView(num, new LinearLayout.LayoutParams(dp(28), dp(28)));
@@ -282,7 +345,7 @@ public class MainActivity extends Activity {
         t.setText(s);
         t.setTextSize(sp);
         t.setTextColor(color);
-        t.setTypeface(Typeface.create("sans-serif" + (bold ? "-medium" : ""),
+        t.setTypeface(Typeface.create(bold ? "sans-serif-medium" : "sans-serif",
                 bold ? Typeface.BOLD : Typeface.NORMAL));
         return t;
     }
