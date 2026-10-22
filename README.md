@@ -7,7 +7,6 @@ This is a **source project prototype**, not a compiled APK. It targets Android 8
 - YouTube/Instagram labels, UI structure, and language vary. The prototype may not detect all entry points, and app updates can break it.
 - It does not block Shorts/Reels opened from links, search, profile pages, or other routes.
 - Android can stop background services; uninterrupted operation is not guaranteed.
-- There is no launcher icon by design. To enable it after installation, open Android Settings → Accessibility → Downloaded/Installed apps (wording varies) → Invisible Blocker → turn it on.
 - Use only if you understand that an Accessibility Service can observe UI events. This prototype does not transmit data or request internet permission.
 
 ## Build
