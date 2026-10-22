@@ -13,51 +13,22 @@ import java.util.Map;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
-    private static final String INSTAGRAM =
-            "com.instagram.android";
+    private static final String INSTAGRAM = "com.instagram.android";
+    private static final String YOUTUBE = "com.google.android.youtube";
+    private static final String FACEBOOK = "com.facebook.katana";
 
-    private static final String YOUTUBE =
-            "com.google.android.youtube";
-
-    private static final String FACEBOOK =
-            "com.facebook.katana";
-
-    /*
-     * Unlock pattern:
-     * quick tap-tap, pause, quick tap-tap
-     */
     private static final long QUICK_GAP_MAX = 700L;
     private static final long PAUSE_MIN = 1000L;
     private static final long PAUSE_MAX = 3000L;
     private static final long DUPLICATE_EVENT_MS = 80L;
-
-    /*
-     * Temporary unlock duration: 10 minutes.
-     */
-    private static final long UNLOCK_DURATION =
-            10L * 60L * 1000L;
-
-    /*
-     * Duplicate Back actions occurring within this period
-     * are ignored.
-     */
+    private static final long UNLOCK_DURATION = 10L * 60L * 1000L;
     private static final long BACK_ACTION_GAP = 180L;
 
-    /*
-     * Each supported app gets an independent unlock timer.
-     */
-    private final Map<String, Long> unlockedUntil =
-            new HashMap<>();
-
-    /*
-     * Stores the four taps used for the secret pattern.
-     */
-    private final List<Long> tapTimes =
-            new ArrayList<>();
+    private final Map<String, Long> unlockedUntil = new HashMap<>();
+    private final List<Long> tapTimes = new ArrayList<>();
 
     private String patternPackage = "";
     private String foregroundPackage = "";
-
     private long lastBackActionAt = 0L;
 
     @Override
@@ -67,34 +38,24 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return;
         }
 
-        String packageName =
-                event.getPackageName().toString();
-
-        int eventType =
-                event.getEventType();
+        String packageName = event.getPackageName().toString();
+        int eventType = event.getEventType();
 
         /*
-         * This check runs for all apps.
-         *
-         * When Instagram, YouTube, or Facebook is minimised,
-         * closed, or replaced by another app, its 10-minute
-         * unlock is immediately removed.
+         * Detect leaving Instagram, YouTube or Facebook.
+         * This resets that app's temporary unlock.
          */
         if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             handleForegroundChange(packageName);
         }
 
-        /*
-         * Ignore clicks from apps other than the three
-         * supported social apps.
-         */
         if (!isSupportedPackage(packageName)) {
             return;
         }
 
         /*
-         * If this specific app is temporarily unlocked,
-         * allow its Reels or Shorts tab.
+         * Allow Reels/Shorts while this particular app
+         * has an active temporary unlock.
          */
         if (isUnlocked(packageName)) {
             return;
@@ -110,40 +71,30 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return;
         }
 
-        String label =
-                getEventLabel(event);
+        String label = getEventLabel(event);
 
         /*
-         * Only block taps on the Reels or Shorts navigation tab.
+         * Only the actual Reels/Shorts navigation tab is blocked.
          *
-         * Reels or Shorts opened from DMs, Messenger,
-         * notifications, WhatsApp, email, or direct links are
-         * allowed because those actions do not tap the app's
-         * Reels or Shorts navigation tab.
+         * Reels/Shorts opened through DMs, Messenger,
+         * notifications or direct links remain allowed.
          */
         if (!isBlockedNavigationLabel(packageName, label)) {
             return;
         }
 
-        long now =
-                SystemClock.elapsedRealtime();
+        long now = SystemClock.elapsedRealtime();
 
         /*
-         * Only CLICKED events count toward the secret pattern.
-         * Some apps emit both CLICKED and SELECTED for one tap.
+         * Count only CLICKED events toward the secret pattern.
          */
         if (clickEvent && registerPatternTap(packageName, now)) {
-
             unlockPackage(packageName);
             return;
         }
 
         blockTabNavigation();
     }
-
-    // =========================================================
-    // SUPPORTED APPS
-    // =========================================================
 
     private boolean isSupportedPackage(String packageName) {
 
@@ -152,20 +103,15 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 || FACEBOOK.equals(packageName);
     }
 
-    // =========================================================
-    // FOREGROUND AND MINIMISE RESET
-    // =========================================================
-
+    /*
+     * Reset unlock when the user leaves the social app.
+     */
     private void handleForegroundChange(String newPackage) {
 
         if (newPackage == null || newPackage.isEmpty()) {
             return;
         }
 
-        /*
-         * When the user leaves one of the supported apps,
-         * remove only that app's unlock and unfinished pattern.
-         */
         if (!foregroundPackage.isEmpty()
                 && isSupportedPackage(foregroundPackage)
                 && !foregroundPackage.equals(newPackage)) {
@@ -173,8 +119,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
             resetPackageState(foregroundPackage);
         }
 
-        foregroundPackage =
-                newPackage;
+        foregroundPackage = newPackage;
     }
 
     private void resetPackageState(String packageName) {
@@ -189,19 +134,18 @@ public class BlockerAccessibilityService extends AccessibilityService {
         lastBackActionAt = 0L;
     }
 
-    // =========================================================
-    // TAP-TAP, PAUSE, TAP-TAP PATTERN
-    // =========================================================
-
+    /*
+     * Secret pattern:
+     *
+     * tap + tap
+     * pause
+     * tap + tap
+     */
     private boolean registerPatternTap(
             String packageName,
             long now) {
 
-        /*
-         * A pattern cannot continue across different apps.
-         */
         if (!packageName.equals(patternPackage)) {
-
             tapTimes.clear();
             patternPackage = packageName;
         }
@@ -211,20 +155,18 @@ public class BlockerAccessibilityService extends AccessibilityService {
             long previousTap =
                     tapTimes.get(tapTimes.size() - 1);
 
-            long gap =
-                    now - previousTap;
+            long gap = now - previousTap;
 
             /*
-             * Ignore duplicate Accessibility events generated
-             * from one physical tap.
+             * Ignore duplicate accessibility events
+             * generated by one physical tap.
              */
             if (gap < DUPLICATE_EVENT_MS) {
                 return false;
             }
 
             /*
-             * If the delay is longer than the allowed pause,
-             * start a new pattern.
+             * Too much delay means restart the sequence.
              */
             if (gap > PAUSE_MAX) {
                 tapTimes.clear();
@@ -233,9 +175,6 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         tapTimes.add(now);
 
-        /*
-         * Only the latest four valid taps are required.
-         */
         while (tapTimes.size() > 4) {
             tapTimes.remove(0);
         }
@@ -276,10 +215,6 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return false;
     }
 
-    // =========================================================
-    // TEMPORARY UNLOCK
-    // =========================================================
-
     private void unlockPackage(String packageName) {
 
         long expiry =
@@ -316,22 +251,14 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return true;
         }
 
-        /*
-         * Ten minutes have expired.
-         */
         resetPackageState(packageName);
 
         return false;
     }
 
-    // =========================================================
-    // EVENT LABEL DETECTION
-    // =========================================================
-
     private String getEventLabel(AccessibilityEvent event) {
 
-        StringBuilder label =
-                new StringBuilder();
+        StringBuilder label = new StringBuilder();
 
         if (event.getText() != null) {
 
@@ -389,33 +316,24 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return false;
     }
 
-    // =========================================================
-    // BLOCK ACTION
-    // =========================================================
-
     private void blockTabNavigation() {
 
-        long now =
-                SystemClock.elapsedRealtime();
+        long now = SystemClock.elapsedRealtime();
 
         /*
-         * Prevent multiple Back actions from duplicate events.
+         * Prevent duplicate Back actions from
+         * CLICKED + SELECTED events.
          */
         if (now - lastBackActionAt < BACK_ACTION_GAP) {
             return;
         }
 
-        lastBackActionAt =
-                now;
+        lastBackActionAt = now;
 
         performGlobalAction(
                 GLOBAL_ACTION_BACK
         );
     }
-
-    // =========================================================
-    // DISPLAY NAME
-    // =========================================================
 
     private String getAppName(String packageName) {
 
@@ -434,15 +352,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return "Short videos";
     }
 
-    // =========================================================
-    // SERVICE CALLBACKS
-    // =========================================================
-
     @Override
     public void onInterrupt() {
-        /*
-         * Required AccessibilityService callback.
-         */
+        // Required AccessibilityService callback.
     }
 
     @Override
