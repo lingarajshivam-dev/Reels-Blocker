@@ -1,4 +1,4 @@
-package com.example.invisibleblocker;
+package com.android.filtersettings;
 
 import android.accessibilityservice.AccessibilityService;
 import android.os.Handler;
