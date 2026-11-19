@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Required for battery optimisation exemption request -->
     <uses-permission
         android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
@@ -12,17 +13,27 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
-        <!-- Main Activity -->
+        <!--
+            Main settings screen.
+            IMPORTANT:
+            Do NOT add MAIN / LAUNCHER intent filter here.
+            Launcher exposure is controlled only by LauncherAlias.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true" />
 
-        <!-- Launcher Alias -->
+        <!--
+            Launcher icon entry.
+            MainActivity enables/disables this component when
+            Hide App Icon / Show App Icon is selected.
+        -->
         <activity-alias
             android:name=".LauncherAlias"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
             android:label="Block &amp; Filter"
             android:targetActivity=".MainActivity">
 
@@ -33,7 +44,7 @@
 
         </activity-alias>
 
-        <!-- Accessibility Service -->
+        <!-- Reels / Shorts blocker -->
         <service
             android:name=".BlockerAccessibilityService"
             android:exported="true"
@@ -41,7 +52,8 @@
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
 
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action
+                    android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
 
             <meta-data
@@ -50,7 +62,7 @@
 
         </service>
 
-        <!-- Device Admin / Device Owner Receiver -->
+        <!-- Parental Protection / Device Admin -->
         <receiver
             android:name=".BlockFilterAdminReceiver"
             android:description="@string/device_admin_description"
@@ -63,8 +75,8 @@
                 android:resource="@xml/device_admin" />
 
             <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-                <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
+                <action
+                    android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
 
         </receiver>
