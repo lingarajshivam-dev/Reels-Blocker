@@ -6,12 +6,9 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.Toast;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
@@ -25,100 +22,66 @@ public class BlockerAccessibilityService extends AccessibilityService {
             "com.facebook.katana";
 
     /*
-     * Six rapid taps on the dedicated Reels/Shorts tab
-     * unlock the corresponding app until the app is left.
-     */
-    private static final int REQUIRED_FAST_TAPS = 6;
-
-    /*
-     * Maximum allowed time between consecutive taps.
-     */
-    private static final long FAST_TAP_MAX_GAP = 600L;
-
-    /*
-     * Accessibility events occurring within this duration
-     * are treated as duplicate events from one physical tap.
-     */
-    private static final long DUPLICATE_EVENT_GAP = 100L;
-
-    /*
-     * A player opened shortly after entering from one of the
-     * trusted external apps is treated as a shared/direct link.
+     * A player opened shortly after entering from one of these
+     * trusted applications is treated as an external/shared link.
      */
     private static final long EXTERNAL_LINK_WINDOW = 7000L;
 
     /*
-     * How long to remember that an Instagram conversation
-     * was visible before a Reel was opened.
+     * Remember an Instagram DM briefly so a Reel opened directly
+     * from that conversation can remain available.
      */
     private static final long INSTAGRAM_DM_WINDOW = 6000L;
 
     /*
-     * Prevent duplicate Back actions from closely spaced
-     * Accessibility events.
+     * Prevent repeated Accessibility events from issuing
+     * multiple Back actions.
      */
-    private static final long REDIRECT_COOLDOWN = 700L;
+    private static final long RE*IRECT_COOLDOWN = 700L;
 
-    /*
-     * Applications that may legitimately open a shared
-     * Reel or Short through an external link.
-     */
-    private static final String[] EXTERNAL_LINK_PACKAGES = {
-            "com.whatsapp",
-            "com.facebook.orca",
-            "com.google.android.gm",
-            "com.google.android.apps.messaging",
-            "com.microsoft.teams",
-            "com.microsoft.office.outlook",
-            "com.android.chrome",
-            "com.microsoft.emmx",
-            "com.sec.android.app.sbrowser",
-            "org.mozilla.firefox",
-            "com.brave.browser",
+    privat* static final String[] EXTERNAL_LI*K_PACKAGES = {
+            "com.wh*tsapp",
+            "com.facebook.*rca",
+            "com.google.andr*id.gm",
+            "com.google.an*roid.apps.messaging",
+            *com.microsoft.teams",
+            *com.microsoft.office.outlook",
+   *        "com.android.chrome",
+    *       "com.microsoft.emmx",
+     *      "com.sec.android.app.sbrowse*",
+            "org.mozilla.firefo*",
+            "com.brave.browser"*
             "com.opera.browser"
+ *  };
+
+    private static final Str*ng[] YOUTUBE_SHORT_IDS = {
+       *    YOUTUBE + ":id/reel_watch_frag*ent_root",
+            YOUTUBE + "*id/reel_recycler",
+            YOU*UBE + ":id/reel_player_page_contai*er",
+            YOUTUBE + ":id/re*l_watch_player",
+            YOUTU*E + ":id/shorts_player",
+         *  YOUTUBE + ":id/shorts_container"*    };
+
+    private static final S*ring[] INSTAGRAM_REEL_IDS = {
+    *       INSTAGRAM + ":id/clips_view*r_view_pager",
+            INSTAGR*M + ":id/clips_viewer_container",
+*           INSTAGRAM + ":id/root_c*ips_layout",
+            INSTAGRAM*+ ":id/clips_video_container",
+   *        INSTAGRAM + ":id/reel_view*r_container",
+            INSTAGRA* + ":id/reel_viewer_root"
     };
 
-    /*
-     * Common YouTube Shorts player IDs.
-     */
-    private static final String[] YOUTUBE_SHORT_IDS = {
-            YOUTUBE + ":id/reel_watch_fragment_root",
-            YOUTUBE + ":id/reel_recycler",
-            YOUTUBE + ":id/reel_player_page_container",
-            YOUTUBE + ":id/reel_watch_player",
-            YOUTUBE + ":id/shorts_player",
-            YOUTUBE + ":id/shorts_container"
+*   private static final String[] F*CEBOOK_REEL_IDS = {
+            FA*EBOOK + ":id/reels_viewer",
+      *     FACEBOOK + ":id/reels_viewer_*ontainer",
+            FACEBOOK + *:id/reels_player",
+            FAC*BOOK + ":id/reels_player_container*,
+            FACEBOOK + ":id/reel*_video_container",
+            FAC*BOOK + ":id/reel_viewer_root",
+   *        FACEBOOK + ":id/reel_video*container",
+            FACEBOOK +*":id/watch_reels_container"
     };
 
-    /*
-     * Common Instagram Reels player IDs.
-     */
-    private static final String[] INSTAGRAM_REEL_IDS = {
-            INSTAGRAM + ":id/clips_viewer_view_pager",
-            INSTAGRAM + ":id/clips_viewer_container",
-            INSTAGRAM + ":id/root_clips_layout",
-            INSTAGRAM + ":id/clips_video_container",
-            INSTAGRAM + ":id/reel_viewer_container",
-            INSTAGRAM + ":id/reel_viewer_root"
-    };
-
-    /*
-     * Common Facebook Reels player IDs.
-     */
-    private static final String[] FACEBOOK_REEL_IDS = {
-            FACEBOOK + ":id/reels_viewer",
-            FACEBOOK + ":id/reels_viewer_container",
-            FACEBOOK + ":id/reels_player",
-            FACEBOOK + ":id/reels_player_container",
-            FACEBOOK + ":id/reels_video_container",
-            FACEBOOK + ":id/reel_viewer_root",
-            FACEBOOK + ":id/reel_video_container",
-            FACEBOOK + ":id/watch_reels_container"
-    };
-
-    /*
-     * Common Instagram DM/conversation markers.
-     */
     private static final String[] INSTAGRAM_DM_IDS = {
             INSTAGRAM + ":id/row_thread_composer_edittext",
             INSTAGRAM + ":id/direct_thread_container",
@@ -130,24 +93,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    /*
-     * Bypass state is stored only in memory.
-     * Leaving the corresponding app removes the bypass.
-     */
-    private final Set<String> unlockedPackages =
-            new HashSet<>();
-
     private String foregroundPackage = "";
 
     /*
-     * Six-tap tracking.
-     */
-    private String tapPackage = "";
-    private int fastTapCount = 0;
-    private long lastFastTapAt = 0L;
-
-    /*
-     * Trusted external-link tracking.
+     * External/shared-link tracking.
      */
     private String pendingExternalPackage = "";
     private long pendingExternalUntil = 0L;
@@ -158,21 +107,20 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private long instagramDmUntil = 0L;
 
     /*
-     * The package whose currently visible player was opened
-     * from a permitted DM or trusted external source.
+     * Represents the currently visible Reel/Short that was
+     * legitimately opened from an approved DM/external source.
      */
     private String allowedExternalPlayerPackage = "";
 
     /*
-     * Ensures only one Back action is generated for each
-     * internally opened Reel/Short player.
+     * One Back maximum per internally opened player.
      */
-    private String blockedPlayerPackage = "";
-    private boolean blockActionPerformed = false;
-    private long lastRedirectAt = 0L;
+    private String blockedPlayer*ackage = "";
+    private boolean b*ockActionPerformed = false;
+    pr*vate long lastRedirectAt = 0L;
 
-    private final Runnable screenCheck =
-            this::checkCurrentScreen;
+  * private final Runnable screenChec* =
+            this::checkCurrentS*reen;
 
     // =========================================================
     // ACCESSIBILITY EVENTS
@@ -195,13 +143,14 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 event.getEventType();
 
         /*
-         * Process window changes from every application.
-         * This is required to detect minimizing and external links.
+         * Observe foreground changes from all packages.
          */
         if (eventType
                 == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
 
-            handleForegroundChange(packageName);
+            handleForegroundChange(
+                    packageName
+            );
         }
 
         if (!isSupportedPackage(packageName)) {
@@ -209,23 +158,16 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * Six rapid tab taps bypass blocking until this app
-         * loses the foreground.
+         * Remember when an Instagram DM/conversation
+         * is currently visible.
          */
-        if (unlockedPackages.contains(packageName)) {
-            return;
-        }
+        if (INSTAGRAM.equals(pac*ageName)) {
 
-        /*
-         * Remember when an Instagram conversation is visible.
-         */
-        if (INSTAGRAM.equals(packageName)) {
+            Accessibi*ityNodeInfo root =
+               *    getRootInActiveWindow();
 
-            AccessibilityNodeInfo root =
-                    getRootInActiveWindow();
-
-            if (root != null
-                    && containsVisibleId(
+    *       if (root != null
+          *         && containsVisibleId(
                             root,
                             INSTAGRAM_DM_IDS)) {
 
@@ -244,8 +186,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
                         == AccessibilityEvent.TYPE_VIEW_SELECTED;
 
         /*
-         * Detect direct interaction with a dedicated
-         * Reels/Shorts navigation control.
+         * Dedicated Reels/Shorts tab was clicked.
+         *
+         * There is intentionally NO hidden tap bypass anymore.
          */
         if (clicked || selected) {
 
@@ -261,27 +204,15 @@ public class BlockerAccessibilityService extends AccessibilityService {
                     viewIds)) {
 
                 /*
-                 * Dedicated tab presses are internal navigation,
-                 * not DM or external-link entries.
+                 * A tab click is internal navigation and
+                 * must not inherit an external-link allowance.
                  */
                 clearExternalAllowance();
 
-                /*
-                 * Count only TYPE_VIEW_CLICKED events.
-                 * Apps may emit CLICKED and SELECTED for one tap.
-                 */
-                if (clicked
-                        && registerFastTabPress(packageName)) {
+                beginNewBlockCycle(
+                        packageName
+                );
 
-                    unlockPackage(packageName);
-                    return;
-                }
-
-                /*
-                 * Start one blocking cycle. The screen check
-                 * performs Back only after the player appears.
-                 */
-                beginNewBlockCycle(packageName);
                 scheduleScreenChecks();
 
                 return;
@@ -289,14 +220,26 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * Detect a player opened from Home, search, profile
-         * or another internal page.
+         * Also check for Reels/Shorts opened from Home,
+         * search, profile or another internal page.
          */
         scheduleScreenChecks();
+*   }
+
+    // =====================*==================================*
+    // SUPPORTED APPS
+    // ====*==================================*=================
+
+    private boo*ean isSupportedPackage(
+          * String packageName) {
+
+        re*urn INSTAGRAM.equals(packageName)
+*               || YOUTUBE.equals(packageName)
+                || FACEBOOK.equals(packageName);
     }
 
     // =========================================================
-    // FOREGROUND TRACKING
+    // FOREGROUND / EXTERNAL LINK TRACKING
     // =========================================================
 
     private void handleForegroundChange(
@@ -312,176 +255,74 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 foregroundPackage;
 
         /*
-         * Leaving a supported app immediately resets:
+         * Leaving the supported social application clears
+         * temporary player state.
          *
-         * - six-tap bypass
-         * - unfinished tap sequence
-         * - current blocking cycle
-         * - DM/external allowance
+         * There is no bypass/unlock state anymore.
          */
         if (!oldPackage.isEmpty()
                 && isSupportedPackage(oldPackage)
                 && !oldPackage.equals(newPackage)) {
 
-            unlockedPackages.remove(oldPackage);
-            resetTapCounter(oldPackage);
             resetBlockCycle();
             clearExternalAllowance();
         }
 
         /*
-         * Entering a supported app from a trusted messaging,
-         * email or browser app creates a short external-link
-         * allowance window.
+         * Entering Instagram, YouTube or Facebook directly
+         * from an approved messaging/email/browser application
+         * establishes a short external-link allowance.
          */
-        if (isTrustedExternalSource(oldPackage)
-                && isSupportedPackage(newPackage)) {
+        if (isTrustedExternalSou*ce(oldPackage)
+                && *sSupportedPackage(newPackage)) {
 
-            pendingExternalPackage =
+*           pendingExternalPackage *
                     newPackage;
 
-            pendingExternalUntil =
-                    SystemClock.elapsedRealtime()
-                            + EXTERNAL_LINK_WINDOW;
+*           pendingExternalUntil =
+*                   SystemClock.ela*sedRealtime()
+                    *       + EXTERNAL_LINK_WINDOW;
+   *    }
+
+        foregroundPackage =*                newPackage;
+    }
+*    private boolean isTrustedExter*alSource(
+            String packa*eName) {
+
+        if (packageName *= null
+                || packageN*me.isEmpty()) {
+
+            retur* false;
         }
 
-        foregroundPackage =
-                newPackage;
-    }
+        for (St*ing trustedPackage :
+             *  EXTERNAL_LINK_PACKAGES) {
 
-    private boolean isSupportedPackage(
-            String packageName) {
-
-        return INSTAGRAM.equals(packageName)
-                || YOUTUBE.equals(packageName)
-                || FACEBOOK.equals(packageName);
-    }
-
-    private boolean isTrustedExternalSource(
-            String packageName) {
-
-        if (packageName == null
-                || packageName.isEmpty()) {
-
-            return false;
-        }
-
-        for (String trustedPackage :
-                EXTERNAL_LINK_PACKAGES) {
-
-            if (trustedPackage.equals(packageName)) {
-                return true;
+     *      if (trustedPackage.equals(pa*kageName)) {
+                retur* true;
             }
         }
 
-        return false;
+  *     return false;
     }
 
-    // =========================================================
-    // SIX RAPID TAPS
-    // =========================================================
+    // =*==================================*====================
+    // EXTERN*L LINKS / INSTAGRAM DMS
+    // ===*==================================*==================
 
-    private boolean registerFastTabPress(
-            String packageName) {
+    private bo*lean isExternalEntryActive(
+      *     String packageName) {
 
-        long now =
-                SystemClock.elapsedRealtime();
-
-        /*
-         * A tap sequence cannot continue across apps.
-         */
-        if (!packageName.equals(tapPackage)) {
-
-            tapPackage =
-                    packageName;
-
-            fastTapCount =
-                    0;
-
-            lastFastTapAt =
-                    0L;
-        }
-
-        if (lastFastTapAt > 0L) {
-
-            long gap =
-                    now - lastFastTapAt;
-
-            /*
-             * Ignore duplicate Accessibility events from
-             * one physical tap.
-             */
-            if (gap < DUPLICATE_EVENT_GAP) {
-                return false;
-            }
-
-            /*
-             * If the gap is greater than 600 ms, restart
-             * the sequence and count this event as tap 1.
-             */
-            if (gap > FAST_TAP_MAX_GAP) {
-                fastTapCount = 0;
-            }
-        }
-
-        fastTapCount++;
-        lastFastTapAt = now;
-
-        if (fastTapCount >= REQUIRED_FAST_TAPS) {
-
-            fastTapCount = 0;
-            lastFastTapAt = 0L;
-
-            return true;
-        }
-
-        return false;
+      * return packageName.equals(
+      *         pendingExternalPackage)
+ *              && SystemClock.elaps*dRealtime()
+                <= pen*ingExternalUntil;
     }
 
-    private void unlockPackage(
-            String packageName) {
+    priva*e boolean isInstagramDmEntryActive*) {
 
-        unlockedPackages.add(packageName);
-
-        resetBlockCycle();
-        clearExternalAllowance();
-
-        Toast.makeText(
-                this,
-                getAppName(packageName)
-                        + " unlocked until the app is closed",
-                Toast.LENGTH_SHORT
-        ).show();
-    }
-
-    private void resetTapCounter(
-            String packageName) {
-
-        if (packageName.equals(tapPackage)) {
-
-            tapPackage = "";
-            fastTapCount = 0;
-            lastFastTapAt = 0L;
-        }
-    }
-
-    // =========================================================
-    // EXTERNAL LINKS AND INSTAGRAM DMS
-    // =========================================================
-
-    private boolean isExternalEntryActive(
-            String packageName) {
-
-        return packageName.equals(
-                pendingExternalPackage)
-                && SystemClock.elapsedRealtime()
-                <= pendingExternalUntil;
-    }
-
-    private boolean isInstagramDmEntryActive() {
-
-        return SystemClock.elapsedRealtime()
-                <= instagramDmUntil;
+        return SystemClock.el*psedRealtime()
+                <= *nstagramDmUntil;
     }
 
     private void clearExternalAllowance() {
@@ -500,29 +341,30 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     private void scheduleScreenChecks() {
 
-        handler.removeCallbacks(screenCheck);
+        handler.removeCallbacks(
+                screenCheck
+        );
 
         /*
-         * Short repeated checks handle apps that load the
-         * Reels/Shorts player asynchronously.
+         * Apps do not always render the player immediately.
+         * Check several times over the next half-second.
          */
         handler.postDelayed(
-                screenCheck,
-                80L
+   *            screenCheck,
+         *      80L
         );
 
-        handler.postDelayed(
-                screenCheck,
+        hand*er.postDelayed(
+                sc*eenCheck,
                 250L
-        );
+   *    );
 
-        handler.postDelayed(
+        handler.postDelaye*(
                 screenCheck,
-                550L
+   *            550L
         );
     }
-
-    private void checkCurrentScreen() {
+*    private void checkCurrentScree*() {
 
         AccessibilityNodeInfo root =
                 getRootInActiveWindow();
@@ -536,9 +378,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
         String packageName =
                 root.getPackageName().toString();
 
-        if (!isSupportedPackage(packageName)
-                || unlockedPackages.contains(packageName)) {
-
+        if (!isSupportedPackage(packageName)) {
             return;
         }
 
@@ -549,8 +389,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 );
 
         /*
-         * If the player is no longer visible, clear only the
-         * state associated with that completed player session.
+         * Player is gone.
+         *
+         * Reset this player cycle so the next internally opened
+         * Reel/Short can independently trigger one Back action.
          */
         if (!playerVisible) {
 
@@ -570,8 +412,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * Allow a player opened from WhatsApp, Messenger,
-         * email, SMS or a supported browser.
+         * Permit a Reel/Short opened from a trusted external app.
          */
         if (isExternalEntryActive(packageName)) {
 
@@ -585,8 +426,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * Allow an Instagram Reel opened from a recently
-         * visible Instagram DM conversation.
+         * Permit an Instagram Reel opened from a recent DM.
          */
         if (INSTAGRAM.equals(packageName)
                 && isInstagramDmEntryActive()) {
@@ -600,8 +440,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * Continue allowing the currently visible player that
-         * was opened through an approved external/DM route.
+         * Continue allowing the current externally initiated
+         * player until the player disappears.
          */
         if (packageName.equals(
                 allowedExternalPlayerPackage)) {
@@ -610,13 +450,19 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         /*
-         * This Reel/Short was opened internally from a tab,
-         * Home feed, search, profile or other internal route.
+         * Internal Reel/Short:
+         *
+         * - dedicated tab
+         * - application Home/feed
+         * - profile
+         * - search
+         * - another internal navigation path
          */
-        if (!packageName.equals(
-                blockedPlayerPackage)) {
+        if (!packageName.equals(*                blockedPlayerPacka*e)) {
 
-            beginNewBlockCycle(packageName);
+            beginNewBlockCy*le(
+                    packageName
+            );
         }
 
         performOneBackForCurrentPlayer();
@@ -642,17 +488,19 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private void performOneBackForCurrentPlayer() {
 
         /*
-         * Never produce more than one Back action during the
-         * same player-entry cycle.
+         * Critical anti-exit behavior:
+         *
+         * only ONE global Back action is allowed during the
+         * current Reels/Shorts player session.
          */
-        if (blockActionPerformed) {
+        if (blockActionPerformed* {
             return;
         }
 
-        long now =
-                SystemClock.elapsedRealtime();
+*       long now =
+                *ystemClock.elapsedRealtime();
 
-        if (now - lastRedirectAt
+   *    if (now - lastRedirectAt
                 < REDIRECT_COOLDOWN) {
 
             return;
@@ -754,10 +602,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return false;
     }
 
-    /*
-     * Fallback detection if an app update changes or hides
-     * the known player view IDs.
-     */
+    // =========================================================
+    // PLAYER FALLBACK DETECTION
+    // =========================================================
+
     private boolean hasPlayerSignals(
             AccessibilityNodeInfo root,
             boolean shortsPlayer) {
@@ -776,11 +624,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
                         ? signals.shorts
                         : signals.reels;
 
-        int controls =
-                signals.controlCount();
-
         return correctLabel
-                && controls >= 2;
+                && signals.controlCount() >= 2;
     }
 
     private void scanNodeTree(
@@ -927,7 +772,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     // =========================================================
-    // REELS / SHORTS TAB DETECTION
+    // TAB DETECTION
     // =========================================================
 
     private boolean isShortVideoTab(
@@ -981,8 +826,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
                             label,
                             "reels"
                     )
-                            || label.contains("watch reels")
-                            || label.contains("video reels");
+                            || label.contains(
+                                    "watch reels")
+                            || label.contains(
+                                    "video reels");
 
             boolean tabContext =
                     viewIds.contains("tab")
@@ -1002,7 +849,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     // =========================================================
-    // ACCESSIBILITY EVENT LABEL HELPERS
+    // EVENT HELPERS
     // =========================================================
 
     private String getCombinedEventLabel(
@@ -1172,34 +1019,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     // =========================================================
-    // DISPLAY NAMES
-    // =========================================================
-
-    private String getAppName(
-            String packageName) {
-
-        if (INSTAGRAM.equals(packageName)) {
-            return "Instagram Reels";
-        }
-
-        if (YOUTUBE.equals(packageName)) {
-            return "YouTube Shorts";
-        }
-
-        if (FACEBOOK.equals(packageName)) {
-            return "Facebook Reels";
-        }
-
-        return "Short videos";
-    }
-
-    // =========================================================
     // SERVICE CALLBACKS
     // =========================================================
 
     @Override
     public void onInterrupt() {
-        // Required AccessibilityService callback.
+        // Required callback.
     }
 
     @Override
@@ -1208,8 +1033,6 @@ public class BlockerAccessibilityService extends AccessibilityService {
         handler.removeCallbacksAndMessages(
                 null
         );
-
-        unlockedPackages.clear();
 
         super.onDestroy();
     }
