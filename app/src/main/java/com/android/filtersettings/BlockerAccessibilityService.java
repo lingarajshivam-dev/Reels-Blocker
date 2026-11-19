@@ -286,9 +286,16 @@ private static final String[] FACEBOOK_REEL_IDS = {
         }
 
         if (FACEBOOK.equals(packageName)) {
-            return containsVisibleId(root, FACEBOOK_REEL_IDS)
-                    || hasPlayerSignals(root, false);
-        }
+
+            if (containsVisibleId(
+                    root,
+                    FACEBOOK_REEL_IDS)) {
+
+                return true;
+            }
+
+        return hasFacebookReelSignals(root);
+    }
 
         return false;
     }
