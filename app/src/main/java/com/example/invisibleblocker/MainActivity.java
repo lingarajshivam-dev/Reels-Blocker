@@ -28,23 +28,12 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private static final int RED =
-            Color.parseColor("#FF3B5C");
-
-    private static final int PURPLE =
-            Color.parseColor("#7C3AED");
-
-    private static final int GREEN =
-            Color.parseColor("#00D98B");
-
-    private static final int AMBER =
-            Color.parseColor("#FFB020");
-
-    private static final int TEXT_DIM =
-            Color.parseColor("#B3FFFFFF");
-
-    private static final int CARD =
-            Color.parseColor("#16FFFFFF");
+    private static final int RED = Color.parseColor("#FF3B5C");
+    private static final int PURPLE = Color.parseColor("#7C3AED");
+    private static final int GREEN = Color.parseColor("#00D98B");
+    private static final int AMBER = Color.parseColor("#FFB020");
+    private static final int TEXT_DIM = Color.parseColor("#B3FFFFFF");
+    private static final int CARD = Color.parseColor("#16FFFFFF");
 
     private View glowRing;
 
@@ -65,32 +54,23 @@ public class MainActivity extends Activity {
     private ObjectAnimator pulseX;
     private ObjectAnimator pulseY;
 
+    // =========================================================
+    // ACTIVITY
+    // =========================================================
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         configureWindow();
 
-        ScrollView scrollView =
-                new ScrollView(this);
-
+        ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
+        scrollView.setBackground(createScreenBackground());
 
-        scrollView.setBackground(
-                createScreenBackground()
-        );
-
-        LinearLayout root =
-                new LinearLayout(this);
-
-        root.setOrientation(
-                LinearLayout.VERTICAL
-        );
-
-        root.setGravity(
-                Gravity.CENTER_HORIZONTAL
-        );
-
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER_HORIZONTAL);
         root.setPadding(
                 dp(24),
                 dp(36),
@@ -114,21 +94,41 @@ public class MainActivity extends Activity {
         prepareGlowAnimation();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        updateUi();
+        updateBatteryCard();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        if (pulseX != null) {
+            pulseX.cancel();
+        }
+
+        if (pulseY != null) {
+            pulseY.cancel();
+        }
+    }
+
     // =========================================================
-    // WINDOW
+    // WINDOW / BACKGROUND
     // =========================================================
 
     private void configureWindow() {
 
-        Window window =
-                getWindow();
+        Window window = getWindow();
 
         window.setStatusBarColor(
-                Color.parseColor("#140A25")
+                Color.parseColor("#07120C")
         );
 
         window.setNavigationBarColor(
-                Color.parseColor("#08080F")
+                Color.parseColor("#050A07")
         );
     }
 
@@ -137,9 +137,9 @@ public class MainActivity extends Activity {
         return new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{
-                        Color.parseColor("#190B2E"),
-                        Color.parseColor("#10091E"),
-                        Color.parseColor("#08080F")
+                        Color.parseColor("#092014"),
+                        Color.parseColor("#07140E"),
+                        Color.parseColor("#050A07")
                 }
         );
     }
@@ -171,13 +171,6 @@ public class MainActivity extends Activity {
         ImageView icon =
                 new ImageView(this);
 
-        /*
-         * IMPORTANT:
-         * The old drawable/ic_launcher.png was deleted.
-         * The new adaptive-icon artwork is:
-         *
-         * drawable/ic_launcher_foreground.png
-         */
         icon.setImageResource(
                 R.drawable.ic_launcher_foreground
         );
@@ -344,7 +337,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // BATTERY OPTIMISATION CARD
+    // BATTERY OPTIMISATION
     // =========================================================
 
     private void addBatteryCard(
@@ -421,7 +414,6 @@ public class MainActivity extends Activity {
                 view -> {
 
                     animatePress(view);
-
                     requestBatteryExemption();
                 }
         );
@@ -445,19 +437,25 @@ public class MainActivity extends Activity {
 
     private boolean isBatteryOptimisationDisabled() {
 
-        PowerManager manager =
+        PowerManager powerManager =
                 (PowerManager)
                         getSystemService(
                                 POWER_SERVICE
                         );
 
-        return manager != null
-                && manager.isIgnoringBatteryOptimizations(
+        return powerManager != null
+                && powerManager.isIgnoringBatteryOptimizations(
                         getPackageName()
                 );
     }
 
     private void updateBatteryCard() {
+
+        if (batteryCard == null
+                || batteryStatusText == null
+                || batteryActionButton == null) {
+            return;
+        }
 
         boolean unrestricted =
                 isBatteryOptimisationDisabled();
@@ -466,8 +464,7 @@ public class MainActivity extends Activity {
 
             batteryStatusText.setText(
                     "Battery restrictions are disabled. " +
-                    "Android can keep Block & Filter available " +
-                    "while the device is idle."
+                    "Block & Filter can remain available while the device is idle."
             );
 
             batteryStatusText.setTextColor(
@@ -518,8 +515,7 @@ public class MainActivity extends Activity {
 
             batteryStatusText.setText(
                     "Allow Block & Filter to run without battery restrictions. " +
-                    "This can help Android keep protection available while " +
-                    "the device is idle."
+                    "This can help Android keep protection available while the device is idle."
             );
 
             batteryStatusText.setTextColor(
@@ -542,8 +538,8 @@ public class MainActivity extends Activity {
                     new GradientDrawable(
                             GradientDrawable.Orientation.LEFT_RIGHT,
                             new int[]{
-                                    RED,
-                                    PURPLE
+                                    Color.parseColor("#00A857"),
+                                    Color.parseColor("#007D40")
                             }
                     );
 
@@ -776,8 +772,8 @@ public class MainActivity extends Activity {
                 new GradientDrawable(
                         GradientDrawable.Orientation.TL_BR,
                         new int[]{
-                                RED,
-                                PURPLE
+                                Color.parseColor("#00C96B"),
+                                Color.parseColor("#006C39")
                         }
                 );
 
@@ -854,8 +850,8 @@ public class MainActivity extends Activity {
                 new GradientDrawable(
                         GradientDrawable.Orientation.LEFT_RIGHT,
                         new int[]{
-                                RED,
-                                PURPLE
+                                Color.parseColor("#00BD63"),
+                                Color.parseColor("#00713D")
                         }
                 );
 
@@ -1029,31 +1025,6 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // ACTIVITY STATE
-    // =========================================================
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        updateUi();
-        updateBatteryCard();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-
-        if (pulseX != null) {
-            pulseX.cancel();
-        }
-
-        if (pulseY != null) {
-            pulseY.cancel();
-        }
-    }
-
-    // =========================================================
     // UPDATE SCREEN
     // =========================================================
 
@@ -1147,7 +1118,7 @@ public class MainActivity extends Activity {
             );
 
             primaryButton.setText(
-                    "Turn On Protection  →"
+                    "Turn On Protection"
             );
 
             restrictedButton.setVisibility(
@@ -1226,10 +1197,9 @@ public class MainActivity extends Activity {
                         "Turn on Block & Filter"
                 )
                 .setMessage(
-                        "Block & Filter uses Android Accessibility to detect " +
-                        "supported Reels and Shorts navigation screens and redirect " +
-                        "the user to the normal application feed.\n\n" +
-                        "The blocking logic runs locally on the device."
+                        "Block & Filter uses Android Accessibility to detect supported " +
+                        "Reels and Shorts screens and return from blocked content.\n\n" +
+                        "Blocking logic runs locally on this device."
                 )
                 .setPositiveButton(
                         "Continue",
@@ -1278,7 +1248,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // RESTRICTED SETTINGS HELPER
+    // RESTRICTED SETTINGS
     // =========================================================
 
     private void showRestrictedSettingsHelp() {
@@ -1291,10 +1261,10 @@ public class MainActivity extends Activity {
                         "Accessibility unavailable?"
                 )
                 .setMessage(
-                        "Android may restrict Accessibility for applications " +
-                        "installed outside an app store.\n\n" +
-                        "Open App Info and check whether Android provides an " +
-                        "option to allow restricted settings."
+                        "Android may restrict Accessibility for applications installed " +
+                        "outside an app store.\n\n" +
+                        "Open App Info and check whether Android provides an option " +
+                        "to allow restricted settings."
                 )
                 .setPositiveButton(
                         "Open App Info",
@@ -1326,7 +1296,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // HIDE / SHOW ICON
+    // HIDE / SHOW LAUNCHER ICON
     // =========================================================
 
     private ComponentName getLauncherAlias() {
@@ -1373,10 +1343,10 @@ public class MainActivity extends Activity {
                         "Hide app icon?"
                 )
                 .setMessage(
-                        "Block & Filter will be removed from the normal launcher.\n\n" +
-                        "The Accessibility Service can continue operating. " +
-                        "Before hiding the icon, make sure the Block & Filter settings " +
-                        "screen can be reopened from Android Accessibility settings."
+                        "Block & Filter will be removed from the normal app launcher.\n\n" +
+                        "The Accessibility Service can continue operating. Before hiding " +
+                        "the icon, ensure Block & Filter can be reopened from Android " +
+                        "Accessibility settings."
                 )
                 .setPositiveButton(
                         "Hide icon",
@@ -1419,7 +1389,7 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
-    // ANIMATION
+    // ANIMATIONS
     // =========================================================
 
     private void startEntranceAnimation(
@@ -1634,7 +1604,8 @@ public class MainActivity extends Activity {
         );
     }
 
-    private int dp(int value) {
+    private int dp(
+            int value) {
 
         return (int) (
                 value
