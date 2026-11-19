@@ -213,3 +213,4 @@ Instagram, Facebook, Meta, YouTube, Google, Android, and other referenced names 
   <strong>Reels Blocker</strong><br>
   Reduce distraction. Keep control.
 </p>
+Rebuild after launcher resource cleanup
