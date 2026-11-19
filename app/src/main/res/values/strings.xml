@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Application name -->
     <string name="app_name">Block &amp; Filter</string>
 
-    <!-- Accessibility Service description -->
     <string name="service_description">
         Block &amp; Filter uses Accessibility to detect and block supported short-video feeds.
     </string>
 
-    <!-- Device Admin / Device Owner description -->
     <string name="device_admin_description">
         Parental-control management for Block &amp; Filter.
     </string>
