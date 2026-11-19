@@ -1,6 +1,6 @@
 package com.android.filtersettings;
 
-import android.accessibilityservice.AccessibilityServi;
+import android.accessibilityservice.AccessibilityService;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
