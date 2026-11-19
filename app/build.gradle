@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.invisibleblocker'
+    namespace 'com.android.filtersettings'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.example.invisibleblocker'
+        applicationId 'com.android.filtersettings'
         minSdk 26
         targetSdk 35
 
