@@ -8,7 +8,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Reels Blocker"
+        android:label="Block &amp; Filter"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
@@ -21,7 +21,7 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Reels Blocker"
+            android:label="Block &amp; Filter"
             android:targetActivity=".MainActivity">
 
             <intent-filter>
@@ -34,7 +34,7 @@
         <service
             android:name=".BlockerAccessibilityService"
             android:exported="true"
-            android:label="Reels Blocker"
+            android:label="Block &amp; Filter"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
 
             <intent-filter>
