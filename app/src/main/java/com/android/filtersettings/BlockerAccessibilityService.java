@@ -53,16 +53,23 @@ public class BlockerAccessibilityService extends AccessibilityService {
             INSTAGRAM + ":id/reel_viewer_root"
     };
 
-    private static final String[] FACEBOOK_REEL_IDS = {
-            FACEBOOK + ":id/reels_viewer",
-            FACEBOOK + ":id/reels_viewer_container",
-            FACEBOOK + ":id/reels_player",
-            FACEBOOK + ":id/reels_player_container",
-            FACEBOOK + ":id/reels_video_container",
-            FACEBOOK + ":id/reel_viewer_root",
-            FACEBOOK + ":id/reel_video_container",
-            FACEBOOK + ":id/watch_reels_container"
-    };
+private static final String[] FACEBOOK_REEL_IDS = {
+        FACEBOOK + ":id/reels_viewer",
+        FACEBOOK + ":id/reels_viewer_container",
+        FACEBOOK + ":id/reels_player",
+        FACEBOOK + ":id/reels_player_container",
+        FACEBOOK + ":id/reels_video_container",
+        FACEBOOK + ":id/reel_viewer_root",
+        FACEBOOK + ":id/reel_video_container",
+        FACEBOOK + ":id/watch_reels_container",
+
+        FACEBOOK + ":id/reels_tab",
+        FACEBOOK + ":id/reels_feed",
+        FACEBOOK + ":id/reels_fragment",
+        FACEBOOK + ":id/reels_video_view",
+        FACEBOOK + ":id/reel_player",
+        FACEBOOK + ":id/reel_container"
+};
 
     private static final String[] INSTAGRAM_DM_IDS = {
             INSTAGRAM + ":id/row_thread_composer_edittext",
