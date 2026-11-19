@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
 
         TextView title =
                 createText(
-                        "Reels Blocker",
+                        "Block & Filter",
                         30,
                         Color.WHITE,
                         true
@@ -466,7 +466,7 @@ public class MainActivity extends Activity {
 
             batteryStatusText.setText(
                     "Battery restrictions are disabled. " +
-                    "Android can keep Reels Blocker available " +
+                    "Android can keep Block & Filter available " +
                     "while the device is idle."
             );
 
@@ -517,7 +517,7 @@ public class MainActivity extends Activity {
         } else {
 
             batteryStatusText.setText(
-                    "Allow Reels Blocker to run without battery restrictions. " +
+                    "Allow Block & Filter to run without battery restrictions. " +
                     "This can help Android keep protection available while " +
                     "the device is idle."
             );
@@ -588,7 +588,7 @@ public class MainActivity extends Activity {
                 )
                 .setMessage(
                         "Android may restrict background activity while the device is idle.\n\n" +
-                        "Continue to the Android system prompt and allow Reels Blocker " +
+                        "Continue to the Android system prompt and allow Block & Filter " +
                         "to run without battery optimisation."
                 )
                 .setPositiveButton(
@@ -708,7 +708,7 @@ public class MainActivity extends Activity {
         setupCard.addView(
                 createStep(
                         3,
-                        "Select Reels Blocker"
+                        "Select Block & Filter"
                 )
         );
 
@@ -722,7 +722,7 @@ public class MainActivity extends Activity {
         setupCard.addView(
                 createStep(
                         5,
-                        "Return to Reels Blocker"
+                        "Return to Block & Filter"
                 )
         );
 
@@ -1098,7 +1098,7 @@ public class MainActivity extends Activity {
 
             subText.setText(
                     "Instagram Reels, YouTube Shorts and Facebook Reels\n" +
-                    "are monitored by Reels Blocker."
+                    "are monitored by Block & Filter."
             );
 
             setupCard.setVisibility(
@@ -1139,7 +1139,7 @@ public class MainActivity extends Activity {
             );
 
             subText.setText(
-                    "Enable the Accessibility Service to activate Reels Blocker."
+                    "Enable the Accessibility Service to activate Block & Filter."
             );
 
             setupCard.setVisibility(
@@ -1223,10 +1223,10 @@ public class MainActivity extends Activity {
                 android.R.style.Theme_DeviceDefault_Dialog_Alert
         )
                 .setTitle(
-                        "Turn on Reels Blocker"
+                        "Turn on Block & Filter"
                 )
                 .setMessage(
-                        "Reels Blocker uses Android Accessibility to detect " +
+                        "Block & Filter uses Android Accessibility to detect " +
                         "supported Reels and Shorts navigation screens and redirect " +
                         "the user to the normal application feed.\n\n" +
                         "The blocking logic runs locally on the device."
@@ -1373,9 +1373,9 @@ public class MainActivity extends Activity {
                         "Hide app icon?"
                 )
                 .setMessage(
-                        "Reels Blocker will be removed from the normal launcher.\n\n" +
+                        "Block & Filter will be removed from the normal launcher.\n\n" +
                         "The Accessibility Service can continue operating. " +
-                        "Before hiding the icon, make sure the Reels Blocker settings " +
+                        "Before hiding the icon, make sure the Block & Filter settings " +
                         "screen can be reopened from Android Accessibility settings."
                 )
                 .setPositiveButton(
