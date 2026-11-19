@@ -12,23 +12,13 @@ import java.util.Locale;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
-    private static final String INSTAGRAM =
-            "com.instagram.android";
+    private static final String INSTAGRAM = "com.instagram.android";
+    private static final String YOUTUBE = "com.google.android.youtube";
+    private static final String FACEBOOK = "com.facebook.katana";
 
-    private static final String YOUTUBE =
-            "com.google.android.youtube";
-
-    private static final String FACEBOOK =
-            "com.facebook.katana";
-
-    private static final long EXTERNAL_LINK_WINDOW =
-            7000L;
-
-    private static final long INSTAGRAM_DM_WINDOW =
-            6000L;
-
-    private static final long REDIRECT_COOLDOWN =
-            700L;
+    private static final long EXTERNAL_LINK_WINDOW = 7000L;
+    private static final long INSTAGRAM_DM_WINDOW = 6000L;
+    private static final long REDIRECT_COOLDOWN = 700L;
 
     private static final String[] EXTERNAL_LINK_PACKAGES = {
             "com.whatsapp",
@@ -71,13 +61,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
             FACEBOOK + ":id/reels_video_container",
             FACEBOOK + ":id/reel_viewer_root",
             FACEBOOK + ":id/reel_video_container",
-            FACEBOOK + ":id/watch_reels_container",
-            FACEBOOK + ":id/reels_tab",
-            FACEBOOK + ":id/reels_feed",
-            FACEBOOK + ":id/reels_fragment",
-            FACEBOOK + ":id/reels_video_view",
-            FACEBOOK + ":id/reel_player",
-            FACEBOOK + ":id/reel_container"
+            FACEBOOK + ":id/watch_reels_container"
     };
 
     private static final String[] INSTAGRAM_DM_IDS = {
@@ -88,47 +72,29 @@ public class BlockerAccessibilityService extends AccessibilityService {
             INSTAGRAM + ":id/direct_thread_recycler_view"
     };
 
-    private final Handler handler =
-            new Handler(Looper.getMainLooper());
-
-    private final Runnable screenCheck =
-            this::checkCurrentScreen;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable screenCheck = this::checkCurrentScreen;
 
     private String foregroundPackage = "";
-
     private String pendingExternalPackage = "";
     private long pendingExternalUntil = 0L;
-
     private long instagramDmUntil = 0L;
-
     private String allowedExternalPlayerPackage = "";
-
     private String blockedPlayerPackage = "";
     private boolean blockActionPerformed = false;
     private long lastRedirectAt = 0L;
 
     @Override
-    public void onAccessibilityEvent(
-            AccessibilityEvent event) {
-
-        if (event == null
-                || event.getPackageName() == null) {
-
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null || event.getPackageName() == null) {
             return;
         }
 
-        String packageName =
-                event.getPackageName().toString();
+        String packageName = event.getPackageName().toString();
+        int eventType = event.getEventType();
 
-        int eventType =
-                event.getEventType();
-
-        if (eventType
-                == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-
-            handleForegroundChange(
-                    packageName
-            );
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            handleForegroundChange(packageName);
         }
 
         if (!isSupportedPackage(packageName)) {
@@ -136,59 +102,23 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         if (INSTAGRAM.equals(packageName)) {
-
-            AccessibilityNodeInfo root =
-                    getRootInActiveWindow();
-
-            if (root != null
-                    && containsVisibleId(
-                            root,
-                            INSTAGRAM_DM_IDS)) {
-
-                instagramDmUntil =
-                        SystemClock.elapsedRealtime()
-                                + INSTAGRAM_DM_WINDOW;
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null && containsVisibleId(root, INSTAGRAM_DM_IDS)) {
+                instagramDmUntil = SystemClock.elapsedRealtime() + INSTAGRAM_DM_WINDOW;
             }
         }
 
-        boolean clicked =
-                eventType
-                        == AccessibilityEvent.TYPE_VIEW_CLICKED;
-
-        boolean selected =
-                eventType
-                        == AccessibilityEvent.TYPE_VIEW_SELECTED;
+        boolean clicked = eventType == AccessibilityEvent.TYPE_VIEW_CLICKED;
+        boolean selected = eventType == AccessibilityEvent.TYPE_VIEW_SELECTED;
 
         if (clicked || selected) {
+            String label = getCombinedEventLabel(event);
+            String viewIds = getSourceViewIds(event);
 
-            String label =
-                    getCombinedEventLabel(event);
-
-            String viewIds =
-                    getSourceViewIds(event);
-
-            if (isShortVideoTab(
-                    packageName,
-                    label,
-                    viewIds)) {
-
+            if (isShortVideoTab(packageName, label, viewIds)) {
                 clearExternalAllowance();
-
-                beginNewBlockCycle(
-                        packageName
-                );
-
-                /*
-                 * Immediately attempt one Back action for a
-                 * direct Reels/Shorts tab press.
-                 *
-                 * Delayed checks remain active in case the tab
-                 * click event arrives before the player appears.
-                 */
-                performOneBackForCurrentPlayer();
-
+                beginNewBlockCycle(packageName);
                 scheduleScreenChecks();
-
                 return;
             }
         }
@@ -196,308 +126,161 @@ public class BlockerAccessibilityService extends AccessibilityService {
         scheduleScreenChecks();
     }
 
-    // =========================================================
-    // SUPPORTED PACKAGES
-    // =========================================================
-
-    private boolean isSupportedPackage(
-            String packageName) {
-
+    private boolean isSupportedPackage(String packageName) {
         return INSTAGRAM.equals(packageName)
                 || YOUTUBE.equals(packageName)
                 || FACEBOOK.equals(packageName);
     }
 
-    // =========================================================
-    // FOREGROUND AND EXTERNAL LINK TRACKING
-    // =========================================================
-
-    private void handleForegroundChange(
-            String newPackage) {
-
-        if (newPackage == null
-                || newPackage.isEmpty()) {
-
+    private void handleForegroundChange(String newPackage) {
+        if (newPackage == null || newPackage.isEmpty()) {
             return;
         }
 
-        String oldPackage =
-                foregroundPackage;
+        String oldPackage = foregroundPackage;
 
         if (!oldPackage.isEmpty()
                 && isSupportedPackage(oldPackage)
                 && !oldPackage.equals(newPackage)) {
-
             resetBlockCycle();
             clearExternalAllowance();
         }
 
         if (isTrustedExternalSource(oldPackage)
                 && isSupportedPackage(newPackage)) {
-
-            pendingExternalPackage =
-                    newPackage;
-
-            pendingExternalUntil =
-                    SystemClock.elapsedRealtime()
-                            + EXTERNAL_LINK_WINDOW;
+            pendingExternalPackage = newPackage;
+            pendingExternalUntil = SystemClock.elapsedRealtime() + EXTERNAL_LINK_WINDOW;
         }
 
-        foregroundPackage =
-                newPackage;
+        foregroundPackage = newPackage;
     }
 
-    private boolean isTrustedExternalSource(
-            String packageName) {
-
-        if (packageName == null
-                || packageName.isEmpty()) {
-
+    private boolean isTrustedExternalSource(String packageName) {
+        if (packageName == null || packageName.isEmpty()) {
             return false;
         }
 
-        for (String trustedPackage :
-                EXTERNAL_LINK_PACKAGES) {
-
+        for (String trustedPackage : EXTERNAL_LINK_PACKAGES) {
             if (trustedPackage.equals(packageName)) {
                 return true;
             }
         }
-
         return false;
     }
 
-    private boolean isExternalEntryActive(
-            String packageName) {
-
-        return packageName.equals(
-                pendingExternalPackage)
-                && SystemClock.elapsedRealtime()
-                <= pendingExternalUntil;
+    private boolean isExternalEntryActive(String packageName) {
+        return packageName.equals(pendingExternalPackage)
+                && SystemClock.elapsedRealtime() <= pendingExternalUntil;
     }
 
     private boolean isInstagramDmEntryActive() {
-
-        return SystemClock.elapsedRealtime()
-                <= instagramDmUntil;
+        return SystemClock.elapsedRealtime() <= instagramDmUntil;
     }
 
     private void clearExternalAllowance() {
-
         pendingExternalPackage = "";
         pendingExternalUntil = 0L;
-
         instagramDmUntil = 0L;
-
         allowedExternalPlayerPackage = "";
     }
 
-    // =========================================================
-    // SCREEN CHECKING
-    // =========================================================
-
     private void scheduleScreenChecks() {
-
-        handler.removeCallbacks(
-                screenCheck
-        );
-
-        handler.postDelayed(
-                screenCheck,
-                80L
-        );
-
-        handler.postDelayed(
-                screenCheck,
-                250L
-        );
-
-        handler.postDelayed(
-                screenCheck,
-                550L
-        );
-
-        /*
-         * Facebook can take longer to populate its
-         * Accessibility tree.
-         */
-        handler.postDelayed(
-                screenCheck,
-                900L
-        );
+        handler.removeCallbacks(screenCheck);
+        handler.postDelayed(screenCheck, 80L);
+        handler.postDelayed(screenCheck, 250L);
+        handler.postDelayed(screenCheck, 550L);
     }
 
     private void checkCurrentScreen() {
-
-        AccessibilityNodeInfo root =
-                getRootInActiveWindow();
-
-        if (root == null
-                || root.getPackageName() == null) {
-
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null || root.getPackageName() == null) {
             return;
         }
 
-        String packageName =
-                root.getPackageName().toString();
-
+        String packageName = root.getPackageName().toString();
         if (!isSupportedPackage(packageName)) {
             return;
         }
 
-        boolean playerVisible =
-                isShortVideoPlayerVisible(
-                        root,
-                        packageName
-                );
+        boolean playerVisible = isShortVideoPlayerVisible(root, packageName);
 
         if (!playerVisible) {
-
-            if (packageName.equals(
-                    allowedExternalPlayerPackage)) {
-
+            if (packageName.equals(allowedExternalPlayerPackage)) {
                 allowedExternalPlayerPackage = "";
             }
-
-            if (packageName.equals(
-                    blockedPlayerPackage)) {
-
+            if (packageName.equals(blockedPlayerPackage)) {
                 resetBlockCycle();
             }
-
             return;
         }
 
-        /*
-         * Allow direct links opened from trusted external apps.
-         */
         if (isExternalEntryActive(packageName)) {
-
-            allowedExternalPlayerPackage =
-                    packageName;
-
+            allowedExternalPlayerPackage = packageName;
             pendingExternalPackage = "";
             pendingExternalUntil = 0L;
-
             return;
         }
 
-        /*
-         * Allow Instagram Reels opened from a recent DM.
-         */
-        if (INSTAGRAM.equals(packageName)
-                && isInstagramDmEntryActive()) {
-
-            allowedExternalPlayerPackage =
-                    packageName;
-
+        if (INSTAGRAM.equals(packageName) && isInstagramDmEntryActive()) {
+            allowedExternalPlayerPackage = packageName;
             instagramDmUntil = 0L;
-
             return;
         }
 
-        if (packageName.equals(
-                allowedExternalPlayerPackage)) {
-
+        if (packageName.equals(allowedExternalPlayerPackage)) {
             return;
         }
 
-        if (!packageName.equals(
-                blockedPlayerPackage)) {
-
-            beginNewBlockCycle(
-                    packageName
-            );
+        if (!packageName.equals(blockedPlayerPackage)) {
+            beginNewBlockCycle(packageName);
         }
 
         performOneBackForCurrentPlayer();
     }
 
-    private void beginNewBlockCycle(
-            String packageName) {
-
-        blockedPlayerPackage =
-                packageName;
-
-        blockActionPerformed =
-                false;
+    private void beginNewBlockCycle(String packageName) {
+        blockedPlayerPackage = packageName;
+        blockActionPerformed = false;
     }
 
     private void resetBlockCycle() {
-
         blockedPlayerPackage = "";
         blockActionPerformed = false;
         lastRedirectAt = 0L;
     }
 
     private void performOneBackForCurrentPlayer() {
-
         if (blockActionPerformed) {
             return;
         }
 
-        long now =
-                SystemClock.elapsedRealtime();
-
-        if (now - lastRedirectAt
-                < REDIRECT_COOLDOWN) {
-
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastRedirectAt < REDIRECT_COOLDOWN) {
             return;
         }
 
-        blockActionPerformed =
-                true;
-
-        lastRedirectAt =
-                now;
-
-        performGlobalAction(
-                GLOBAL_ACTION_BACK
-        );
+        blockActionPerformed = true;
+        lastRedirectAt = now;
+        performGlobalAction(GLOBAL_ACTION_BACK);
     }
-
-    // =========================================================
-    // PLAYER DETECTION
-    // =========================================================
 
     private boolean isShortVideoPlayerVisible(
             AccessibilityNodeInfo root,
             String packageName) {
 
         if (YOUTUBE.equals(packageName)) {
-
-            return containsVisibleId(
-                    root,
-                    YOUTUBE_SHORT_IDS
-            ) || hasPlayerSignals(
-                    root,
-                    true
-            );
+            return containsVisibleId(root, YOUTUBE_SHORT_IDS)
+                    || hasPlayerSignals(root, true);
         }
 
         if (INSTAGRAM.equals(packageName)) {
-
-            return containsVisibleId(
-                    root,
-                    INSTAGRAM_REEL_IDS
-            ) || hasPlayerSignals(
-                    root,
-                    false
-            );
+            return containsVisibleId(root, INSTAGRAM_REEL_IDS)
+                    || hasPlayerSignals(root, false);
         }
 
         if (FACEBOOK.equals(packageName)) {
-
-            if (containsVisibleId(
-                    root,
-                    FACEBOOK_REEL_IDS)) {
-
-                return true;
-            }
-
-            return hasFacebookReelSignals(
-                    root
-            );
+            return containsVisibleId(root, FACEBOOK_REEL_IDS)
+                    || hasPlayerSignals(root, false);
         }
 
         return false;
@@ -508,54 +291,34 @@ public class BlockerAccessibilityService extends AccessibilityService {
             String[] ids) {
 
         for (String id : ids) {
-
             List<AccessibilityNodeInfo> nodes =
-                    root.findAccessibilityNodeInfosByViewId(
-                            id
-                    );
+                    root.findAccessibilityNodeInfosByViewId(id);
 
             if (nodes == null) {
                 continue;
             }
 
-            for (AccessibilityNodeInfo node :
-                    nodes) {
-
-                if (node != null
-                        && node.isVisibleToUser()) {
-
+            for (AccessibilityNodeInfo node : nodes) {
+                if (node != null && node.isVisibleToUser()) {
                     return true;
                 }
             }
         }
-
         return false;
     }
-
-    // =========================================================
-    // INSTAGRAM / YOUTUBE FALLBACK DETECTION
-    // =========================================================
 
     private boolean hasPlayerSignals(
             AccessibilityNodeInfo root,
             boolean shortsPlayer) {
 
-        PlayerSignals signals =
-                new PlayerSignals();
+        PlayerSignals signals = new PlayerSignals();
+        scanNodeTree(root, signals, 0);
 
-        scanNodeTree(
-                root,
-                signals,
-                0
-        );
+        boolean correctLabel = shortsPlayer
+                ? signals.shorts
+                : signals.reels;
 
-        boolean correctLabel =
-                shortsPlayer
-                        ? signals.shorts
-                        : signals.reels;
-
-        return correctLabel
-                && signals.controlCount() >= 2;
+        return correctLabel && signals.controlCount() >= 2;
     }
 
     private void scanNodeTree(
@@ -563,294 +326,83 @@ public class BlockerAccessibilityService extends AccessibilityService {
             PlayerSignals signals,
             int depth) {
 
-        if (node == null
-                || depth > 35
-                || signals.isComplete()) {
-
+        if (node == null || depth > 35 || signals.isComplete()) {
             return;
         }
 
-        String text =
-                getNodeText(node);
+        String text = normalize(
+                valueOf(node.getText()) + " "
+                        + valueOf(node.getContentDescription()) + " "
+                        + valueOf(node.getViewIdResourceName())
+        );
 
         if (!text.isEmpty()) {
-
             if (text.contains("shorts")
                     || text.contains("reel_watch")
                     || text.contains("reel_recycler")) {
-
                 signals.shorts = true;
             }
 
             if (text.contains("reels")
                     || text.contains("reels_viewer")
                     || text.contains("reel viewer")) {
-
                 signals.reels = true;
             }
 
-            if (containsActionWord(
-                    text,
-                    "like")) {
-
+            if (containsActionWord(text, "like")) {
                 signals.like = true;
             }
-
-            if (containsActionWord(
-                    text,
-                    "comment")) {
-
+            if (containsActionWord(text, "comment")) {
                 signals.comment = true;
             }
-
-            if (containsActionWord(
-                    text,
-                    "share")) {
-
+            if (containsActionWord(text, "share")) {
                 signals.share = true;
             }
-
-            if (containsActionWord(
-                    text,
-                    "remix")) {
-
+            if (containsActionWord(text, "remix")) {
                 signals.remix = true;
             }
         }
 
-        int childCount =
-                node.getChildCount();
-
-        for (int index = 0;
-             index < childCount;
-             index++) {
-
-            AccessibilityNodeInfo child =
-                    node.getChild(index);
-
+        int childCount = node.getChildCount();
+        for (int index = 0; index < childCount; index++) {
+            AccessibilityNodeInfo child = node.getChild(index);
             if (child == null) {
                 continue;
             }
-
-            scanNodeTree(
-                    child,
-                    signals,
-                    depth + 1
-            );
-
+            scanNodeTree(child, signals, depth + 1);
             child.recycle();
         }
     }
 
-    private static class PlayerSignals {
+    private boolean containsActionWord(String text, String word) {
+        return text.equals(word)
+                || text.startsWith(word + " ")
+                || text.startsWith(word + ",")
+                || text.contains(" " + word + " ")
+                || text.endsWith(" " + word);
+    }
 
+    private static class PlayerSignals {
         boolean shorts;
         boolean reels;
-
         boolean like;
         boolean comment;
         boolean share;
         boolean remix;
 
         int controlCount() {
-
             int controls = 0;
-
-            if (like) {
-                controls++;
-            }
-
-            if (comment) {
-                controls++;
-            }
-
-            if (share) {
-                controls++;
-            }
-
-            if (remix) {
-                controls++;
-            }
-
+            if (like) controls++;
+            if (comment) controls++;
+            if (share) controls++;
+            if (remix) controls++;
             return controls;
         }
 
         boolean isComplete() {
-
-            return (shorts || reels)
-                    && controlCount() >= 3;
+            return (shorts || reels) && controlCount() >= 3;
         }
     }
-
-    // =========================================================
-    // FACEBOOK REELS FALLBACK DETECTION
-    // =========================================================
-
-    private boolean hasFacebookReelSignals(
-            AccessibilityNodeInfo root) {
-
-        FacebookSignals signals =
-                new FacebookSignals();
-
-        scanFacebookTree(
-                root,
-                signals,
-                0
-        );
-
-        /*
-         * Strong Facebook case:
-         * the Accessibility tree explicitly exposes Reels.
-         */
-        if (signals.reels) {
-
-            return signals.controlCount() >= 1;
-        }
-
-        /*
-         * Fallback Facebook case:
-         * a full-screen video/watch/player marker plus at
-         * least two typical short-video controls.
-         */
-        return signals.videoPlayer
-                && signals.controlCount() >= 2;
-    }
-
-    private void scanFacebookTree(
-            AccessibilityNodeInfo node,
-            FacebookSignals signals,
-            int depth) {
-
-        if (node == null
-                || depth > 35
-                || signals.isComplete()) {
-
-            return;
-        }
-
-        String text =
-                getNodeText(node);
-
-        if (!text.isEmpty()) {
-
-            if (text.contains("reels")
-                    || text.contains("reel_")
-                    || text.contains("reels_")
-                    || text.contains("watch reels")) {
-
-                signals.reels = true;
-            }
-
-            if (text.contains("video")
-                    || text.contains("watch")
-                    || text.contains("player")
-                    || text.contains("fullscreen")) {
-
-                signals.videoPlayer = true;
-            }
-
-            if (containsActionWord(
-                    text,
-                    "like")) {
-
-                signals.like = true;
-            }
-
-            if (containsActionWord(
-                    text,
-                    "comment")) {
-
-                signals.comment = true;
-            }
-
-            if (containsActionWord(
-                    text,
-                    "share")) {
-
-                signals.share = true;
-            }
-
-            if (containsActionWord(
-                    text,
-                    "follow")) {
-
-                signals.follow = true;
-            }
-        }
-
-        int childCount =
-                node.getChildCount();
-
-        for (int index = 0;
-             index < childCount;
-             index++) {
-
-            AccessibilityNodeInfo child =
-                    node.getChild(index);
-
-            if (child == null) {
-                continue;
-            }
-
-            scanFacebookTree(
-                    child,
-                    signals,
-                    depth + 1
-            );
-
-            child.recycle();
-        }
-    }
-
-    private static class FacebookSignals {
-
-        boolean reels;
-        boolean videoPlayer;
-
-        boolean like;
-        boolean comment;
-        boolean share;
-        boolean follow;
-
-        int controlCount() {
-
-            int controls = 0;
-
-            if (like) {
-                controls++;
-            }
-
-            if (comment) {
-                controls++;
-            }
-
-            if (share) {
-                controls++;
-            }
-
-            if (follow) {
-                controls++;
-            }
-
-            return controls;
-        }
-
-        boolean isComplete() {
-
-            if (reels
-                    && controlCount() >= 2) {
-
-                return true;
-            }
-
-            return videoPlayer
-                    && controlCount() >= 3;
-        }
-    }
-
-    // =========================================================
-    // TAB DETECTION
-    // =========================================================
 
     private boolean isShortVideoTab(
             String packageName,
@@ -858,161 +410,67 @@ public class BlockerAccessibilityService extends AccessibilityService {
             String viewIds) {
 
         if (YOUTUBE.equals(packageName)) {
-
-            boolean labelMatches =
-                    containsWord(
-                            label,
-                            "shorts"
-                    );
-
-            boolean tabContext =
-                    viewIds.contains("pivot")
-                            || viewIds.contains("bottom")
-                            || viewIds.contains("navigation")
-                            || viewIds.contains("shorts")
-                            || label.contains("tab");
-
-            return labelMatches
-                    && tabContext;
+            boolean labelMatches = containsWord(label, "shorts");
+            boolean tabContext = viewIds.contains("pivot")
+                    || viewIds.contains("bottom")
+                    || viewIds.contains("navigation")
+                    || viewIds.contains("shorts")
+                    || label.contains("tab");
+            return labelMatches && tabContext;
         }
 
         if (INSTAGRAM.equals(packageName)) {
-
-            boolean labelMatches =
-                    containsWord(
-                            label,
-                            "reels"
-                    );
-
-            boolean tabContext =
-                    viewIds.contains("tab")
-                            || viewIds.contains("navigation")
-                            || viewIds.contains("clips")
-                            || viewIds.contains("reels")
-                            || label.contains("tab")
-                            || viewIds.isEmpty();
-
-            return labelMatches
-                    && tabContext;
+            boolean labelMatches = containsWord(label, "reels");
+            boolean tabContext = viewIds.contains("tab")
+                    || viewIds.contains("navigation")
+                    || viewIds.contains("clips")
+                    || viewIds.contains("reels")
+                    || label.contains("tab")
+                    || viewIds.isEmpty();
+            return labelMatches && tabContext;
         }
 
         if (FACEBOOK.equals(packageName)) {
-
-            boolean labelMatches =
-                    containsWord(
-                            label,
-                            "reels"
-                    )
-                            || label.contains("watch reels")
-                            || label.contains("video reels")
-                            || label.contains("reels and short videos")
-                            || viewIds.contains("reels");
-
-            boolean tabContext =
-                    viewIds.contains("tab")
-                            || viewIds.contains("navigation")
-                            || viewIds.contains("reels")
-                            || viewIds.contains("watch")
-                            || viewIds.contains("video")
-                            || viewIds.contains("pivot")
-                            || label.contains("tab")
-                            || label.contains("button")
-                            || viewIds.isEmpty();
-
-            return labelMatches
-                    && tabContext;
+            boolean labelMatches = containsWord(label, "reels")
+                    || label.contains("watch reels")
+                    || label.contains("video reels");
+            boolean tabContext = viewIds.contains("tab")
+                    || viewIds.contains("navigation")
+                    || viewIds.contains("reels")
+                    || viewIds.contains("watch")
+                    || viewIds.contains("video")
+                    || label.contains("tab")
+                    || label.contains("button")
+                    || viewIds.isEmpty();
+            return labelMatches && tabContext;
         }
 
         return false;
     }
 
-    // =========================================================
-    // NODE AND EVENT HELPERS
-    // =========================================================
-
-    private String getNodeText(
-            AccessibilityNodeInfo node) {
-
-        if (node == null) {
-            return "";
-        }
-
-        return normalize(
-                valueOf(node.getText())
-                        + " "
-                        + valueOf(
-                                node.getContentDescription())
-                        + " "
-                        + valueOf(
-                                node.getViewIdResourceName())
-        );
-    }
-
-    private boolean containsActionWord(
-            String text,
-            String word) {
-
-        return text.equals(word)
-                || text.startsWith(word + " ")
-                || text.startsWith(word + ",")
-                || text.contains(" " + word + " ")
-                || text.endsWith(" " + word)
-                || text.contains(word + " button");
-    }
-
-    private String getCombinedEventLabel(
-            AccessibilityEvent event) {
-
-        StringBuilder builder =
-                new StringBuilder();
+    private String getCombinedEventLabel(AccessibilityEvent event) {
+        StringBuilder builder = new StringBuilder();
 
         if (event.getText() != null) {
-
-            for (CharSequence value :
-                    event.getText()) {
-
-                appendValue(
-                        builder,
-                        value
-                );
+            for (CharSequence value : event.getText()) {
+                appendValue(builder, value);
             }
         }
 
-        appendValue(
-                builder,
-                event.getContentDescription()
-        );
+        appendValue(builder, event.getContentDescription());
 
-        AccessibilityNodeInfo current =
-                event.getSource();
-
+        AccessibilityNodeInfo current = event.getSource();
         int depth = 0;
 
-        while (current != null
-                && depth < 6) {
+        while (current != null && depth < 6) {
+            appendValue(builder, current.getText());
+            appendValue(builder, current.getContentDescription());
+            appendValue(builder, current.getViewIdResourceName());
 
-            appendValue(
-                    builder,
-                    current.getText()
-            );
-
-            appendValue(
-                    builder,
-                    current.getContentDescription()
-            );
-
-            appendValue(
-                    builder,
-                    current.getViewIdResourceName()
-            );
-
-            AccessibilityNodeInfo parent =
-                    current.getParent();
-
+            AccessibilityNodeInfo parent = current.getParent();
             if (depth > 0) {
                 current.recycle();
             }
-
             current = parent;
             depth++;
         }
@@ -1021,37 +479,21 @@ public class BlockerAccessibilityService extends AccessibilityService {
             current.recycle();
         }
 
-        return normalize(
-                builder.toString()
-        );
+        return normalize(builder.toString());
     }
 
-    private String getSourceViewIds(
-            AccessibilityEvent event) {
-
-        StringBuilder builder =
-                new StringBuilder();
-
-        AccessibilityNodeInfo current =
-                event.getSource();
-
+    private String getSourceViewIds(AccessibilityEvent event) {
+        StringBuilder builder = new StringBuilder();
+        AccessibilityNodeInfo current = event.getSource();
         int depth = 0;
 
-        while (current != null
-                && depth < 6) {
+        while (current != null && depth < 6) {
+            appendValue(builder, current.getViewIdResourceName());
 
-            appendValue(
-                    builder,
-                    current.getViewIdResourceName()
-            );
-
-            AccessibilityNodeInfo parent =
-                    current.getParent();
-
+            AccessibilityNodeInfo parent = current.getParent();
             if (depth > 0) {
                 current.recycle();
             }
-
             current = parent;
             depth++;
         }
@@ -1060,60 +502,35 @@ public class BlockerAccessibilityService extends AccessibilityService {
             current.recycle();
         }
 
-        return normalize(
-                builder.toString()
-        );
+        return normalize(builder.toString());
     }
 
-    private void appendValue(
-            StringBuilder builder,
-            CharSequence value) {
-
+    private void appendValue(StringBuilder builder, CharSequence value) {
         if (value == null) {
             return;
         }
 
-        String text =
-                value.toString().trim();
-
+        String text = value.toString().trim();
         if (!text.isEmpty()) {
-
-            builder.append(text);
-            builder.append(" ");
+            builder.append(text).append(" ");
         }
     }
 
-    private String valueOf(
-            CharSequence value) {
-
-        return value == null
-                ? ""
-                : value.toString();
+    private String valueOf(CharSequence value) {
+        return value == null ? "" : value.toString();
     }
 
-    private String normalize(
-            String value) {
-
+    private String normalize(String value) {
         if (value == null) {
             return "";
         }
-
-        return value
-                .trim()
+        return value.trim()
                 .toLowerCase(Locale.ROOT)
-                .replaceAll(
-                        "\\s+",
-                        " "
-                );
+                .replaceAll("\\s+", " ");
     }
 
-    private boolean containsWord(
-            String text,
-            String word) {
-
-        if (text == null
-                || text.isEmpty()) {
-
+    private boolean containsWord(String text, String word) {
+        if (text == null || text.isEmpty()) {
             return false;
         }
 
@@ -1126,10 +543,6 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 || text.contains(word + " button");
     }
 
-    // =========================================================
-    // SERVICE CALLBACKS
-    // =========================================================
-
     @Override
     public void onInterrupt() {
         // Required callback.
@@ -1137,11 +550,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
-
-        handler.removeCallbacksAndMessages(
-                null
-        );
-
+        handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 }
