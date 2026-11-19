@@ -14,7 +14,6 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     private static final String INSTAGRAM = "com.instagram.android";
     private static final String YOUTUBE = "com.google.android.youtube";
-    private static final String FACEBOOK = "com.facebook.katana";
 
     private static final long EXTERNAL_LINK_WINDOW = 7000L;
     private static final long INSTAGRAM_DM_WINDOW = 6000L;
